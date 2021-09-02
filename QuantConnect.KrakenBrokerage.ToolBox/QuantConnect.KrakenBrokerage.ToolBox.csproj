@@ -8,16 +8,20 @@
         <Copyright>Copyright ©  2021</Copyright>
         <OutputPath>bin\$(Configuration)\</OutputPath>
         <Product>QuantConnect.TemplateBrokerage.ToolBox</Product>
-        <AssemblyName>QuantConnect.TemplateBrokerage.ToolBox</AssemblyName>
         <RootNamespace>QuantConnect.TemplateBrokerage.ToolBox</RootNamespace>
         <AssemblyTitle>QuantConnect.TemplateBrokerage.ToolBox</AssemblyTitle>
         <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+        <PackageId>QuantConnect.KrakenBrokerage.ToolBox</PackageId>
     </PropertyGroup>
 
     <ItemGroup>
       <ProjectReference Include="..\..\Lean\Common\QuantConnect.csproj" />
       <ProjectReference Include="..\..\Lean\ToolBox\QuantConnect.ToolBox.csproj" />
-      <ProjectReference Include="..\QuantConnect.TemplateBrokerage\QuantConnect.TemplateBrokerage.csproj" />
+      <ProjectReference Include="..\QuantConnect.KrakenBrokerage\QuantConnect.KrakenBrokerage.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="KrakenDataDownloader" />
     </ItemGroup>
 
 </Project>

@@ -15,15 +15,16 @@
 
 using NUnit.Framework;
 using System.Threading;
+using QuantConnect.Brokerages.Kraken;
 using QuantConnect.Data;
 using QuantConnect.Tests;
 using QuantConnect.Logging;
 using QuantConnect.Data.Market;
 
-namespace QuantConnect.TemplateBrokerage.Tests
+namespace QuantConnect.Tests.Brokerages.Kraken
 {
     [TestFixture]
-    public partial class TemplateBrokerageTests
+    public partial class KrakenBrokerageTests
     {
         private static TestCaseData[] TestParameters
         {
@@ -31,10 +32,9 @@ namespace QuantConnect.TemplateBrokerage.Tests
             {
                 return new[]
                 {
-                    // valid parameters, for example
-                    new TestCaseData(Symbols.BTCUSD, Resolution.Tick, false),
-                    new TestCaseData(Symbols.BTCUSD, Resolution.Minute, false),
-                    new TestCaseData(Symbols.BTCUSD, Resolution.Second, false),
+                    new TestCaseData(Symbol.Create("EURUSD", SecurityType.Crypto, Market.Kraken), Resolution.Tick, false),
+                    new TestCaseData(Symbol.Create("BTCUSD", SecurityType.Crypto, Market.Kraken), Resolution.Tick, false),
+                    new TestCaseData(Symbol.Create("ETHBTC", SecurityType.Crypto, Market.Kraken), Resolution.Tick, false),
                 };
             }
         }
@@ -43,7 +43,7 @@ namespace QuantConnect.TemplateBrokerage.Tests
         public void StreamsData(Symbol symbol, Resolution resolution, bool throwsException)
         {
             var cancelationToken = new CancellationTokenSource();
-            var brokerage = (TemplateBrokerage)Brokerage;
+            var brokerage = (KrakenBrokerage)Brokerage;
 
             SubscriptionDataConfig[] configs;
             if (resolution == Resolution.Tick)

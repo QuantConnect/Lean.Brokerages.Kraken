@@ -13,14 +13,27 @@
  * limitations under the License.
 */
 
+using System;
+using QuantConnect.ToolBox.KrakenDownloader;
+
 namespace QuantConnect.TemplateBrokerage.ToolBox
 {
     static class Program
     {
         static void Main(string[] args)
         {
-            var downloader = new TemplateBrokerageDownloader();
+            var downloader = new KrakenDataDownloader();
 
+            var bars = downloader.Get(Symbol.Create("BTCUSD", SecurityType.Crypto, Market.Kraken), Resolution.Minute, DateTime.UtcNow - TimeSpan.FromHours(1), DateTime.UtcNow);
+
+            int counter = 0;
+            foreach (var bar in bars)
+            {
+                counter++;
+                Console.WriteLine($"Returned bar #{counter} : {bar}");
+            }
+            
+            Console.WriteLine($"Returned bars - {counter} (Should be 60)");
         }
     }
 }

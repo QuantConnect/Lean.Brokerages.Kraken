@@ -4,7 +4,6 @@
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <TargetFramework>net5.0</TargetFramework>
     <Product>QuantConnect.TemplateBrokerage</Product>
-    <AssemblyName>QuantConnect.TemplateBrokerage</AssemblyName>
     <RootNamespace>QuantConnect.TemplateBrokerage</RootNamespace>
     <AssemblyTitle>QuantConnect.TemplateBrokerage</AssemblyTitle>
     <OutputType>Library</OutputType>
@@ -13,6 +12,7 @@
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <Description>QuantConnect LEAN Template Brokerage: Brokerage Template plugin for Lean</Description>
+    <PackageId>QuantConnect.KrakenBrokerage</PackageId>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugType>full</DebugType>
