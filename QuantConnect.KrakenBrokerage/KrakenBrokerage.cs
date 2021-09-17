@@ -237,9 +237,9 @@ namespace QuantConnect.Brokerages.Kraken
         
         private void CancelOrderRateLimitCheck(string symbol, DateTime time)
         {
+            var weight = GetRateLimitWeightCancelOrder(time);
             if (RateLimitsCancelPerSymbolDictionary.TryGetValue(symbol, out var currentCancelOrderRate))
             {
-                var weight = GetRateLimitWeightCancelOrder(time);
                 if (currentCancelOrderRate + weight >= _rateLimitsDictionary[KrakenRateLimitType.Orders])
                 {
                     Log.Trace("Brokerage.OnMessage(): " + new BrokerageMessageEvent(BrokerageMessageType.Warning, "CancelRateLimit",
@@ -248,7 +248,10 @@ namespace QuantConnect.Brokerages.Kraken
                 }
 
                 RateLimitsCancelPerSymbolDictionary[symbol] += weight;
+                return;
             }
+
+            RateLimitsCancelPerSymbolDictionary[symbol] = weight;
         }
 
         private int GetRateLimitWeightCancelOrder(DateTime time)
@@ -340,70 +343,69 @@ namespace QuantConnect.Brokerages.Kraken
             List<Order> list = new List<Order>();
             foreach (JProperty item in token["result"]["open"].Children())
             {
+                var krakenOrder = item.Value.ToObject<KrakenOpenOrder>();
                 Order order;
-                var quantity = item.Value["vol"].ConvertInvariant<decimal>();
-                var symbol = _symbolMapper.GetLeanSymbolFromOpenOrders(item.Value["descr"]["pair"].ToString());
-                var timestamp = item.Value["opentm"].ConvertInvariant<double>();
-                var time = timestamp != 0 ? Time.UnixTimeStampToDateTime(timestamp) : DateTime.UtcNow;
+                var quantity = krakenOrder.Vol;
+                var symbol = _symbolMapper.GetLeanSymbolFromOpenOrders(krakenOrder.Descr.Pair);
+                var time = !string.IsNullOrEmpty(krakenOrder.Opentm) ? Time.UnixTimeStampToDateTime(krakenOrder.Opentm.ConvertInvariant<double>()) : DateTime.UtcNow;
                 var brokerId = item.Name;
                 
                 var properties = new KrakenOrderProperties();
 
-                var flags = item.Value["oflags"].ToString();
-                if (flags.Contains("post"))
+                if (krakenOrder.Oflags.Contains("post"))
                 {
                     properties.PostOnly = true;
                 }
-                if (flags.Contains("fcib"))
+                if (krakenOrder.Oflags.Contains("fcib"))
                 {
                     properties.FeeInBase = true;
                 }
-                if (flags.Contains("fciq"))
+                if (krakenOrder.Oflags.Contains("fciq"))
                 {
                     properties.FeeInQuote = true;
                 }
-                if (flags.Contains("nompp"))
+                if (krakenOrder.Oflags.Contains("nompp"))
                 {
                     properties.NoMarketPriceProtection = true;
                 }
 
-                switch (item.Value["descr"]["ordertype"].ToString().LazyToUpper())
+                switch (krakenOrder.Descr.OrderType.LazyToUpper())
                 {
                     case "MARKET":
                         order = new MarketOrder(symbol, quantity, time, properties: properties);
                         break;
                     case "LIMIT":
-                        var limPrice = item.Value["descr"]["price"].ConvertInvariant<decimal>();
+                        var limPrice = krakenOrder.Descr.Price;
                         order = new LimitOrder(symbol, quantity, limPrice, time, properties: properties)
                         {
                             BrokerId = {brokerId}
                         };
                         break;
                     case "STOP-LOSS":
-                        var stopPrice = item.Value["descr"]["price"].ConvertInvariant<decimal>();
+                        var stopPrice = krakenOrder.Descr.Price;
                         order = new StopMarketOrder(symbol, quantity, stopPrice, time, properties: properties)               
                         {
                             BrokerId = {brokerId}
                         };
                         break;
                     case "TAKE-PROFIT":
-                        var tpPrice = item.Value["price"].ConvertInvariant<decimal>();
+                        var tpPrice = krakenOrder.Descr.Price;
                         order = new StopMarketOrder(symbol, quantity, tpPrice, time, properties: properties)
                         {
                             BrokerId = {brokerId}
                         };
                         break;
                     case "STOP-LOSS-LIMIT":
-                        var stpPrice = item.Value["descr"]["price"].ConvertInvariant<decimal>();
-                        var limitPrice = item.Value["descr"]["price2"].ConvertInvariant<decimal>();
+                        var stpPrice = krakenOrder.Descr.Price;
+                        var limitPrice = krakenOrder.Descr.Price2;
                         order = new StopLimitOrder(symbol, quantity, stpPrice, limitPrice, time, properties: properties)
                         {
                             BrokerId = {brokerId}
                         };
                         break;
                     case "TAKE-PROFIT-LIMIT":
-                        var takePrice = item.Value["descr"]["price"].ConvertInvariant<decimal>();
-                        var lmtPrice = item.Value["descr"]["price2"].ConvertInvariant<decimal>();
+                        var takePrice = krakenOrder.Descr.Price;
+                        var lmtPrice = krakenOrder.Descr.Price2;
                         order = new LimitIfTouchedOrder(symbol, quantity, takePrice, lmtPrice, time, properties: properties)
                         {
                             BrokerId = {brokerId}
@@ -415,7 +417,7 @@ namespace QuantConnect.Brokerages.Kraken
                         continue;
                 }
 
-                order.Status = GetOrderStatus(item.Value["status"].ToString());
+                order.Status = GetOrderStatus(krakenOrder.Status);
 
                 if (order.Status.IsOpen())
                 {
@@ -460,18 +462,19 @@ namespace QuantConnect.Brokerages.Kraken
 
             foreach (JProperty balance in token["result"].Children())
             {
+                var krakenPosition = balance.Value.ToObject<KrakenOpenPosition>();
                 var holding = new Holding
                 {
-                    Symbol = _symbolMapper.GetLeanSymbol(balance.Value["pair"].ToString()),
-                    Quantity = balance.Value["vol"].ConvertInvariant<decimal>(),
-                    UnrealizedPnL = balance.Value["net"].ConvertInvariant<decimal>(),
-                    MarketValue = balance.Value["value"].ConvertInvariant<decimal>(),
+                    Symbol = _symbolMapper.GetLeanSymbol(krakenPosition.Pair),
+                    Quantity = krakenPosition.Vol,
+                    UnrealizedPnL = krakenPosition.Net,
+                    MarketValue = krakenPosition.Value,
                 };
 
-                holding.AveragePrice = balance.Value["cost"].ConvertInvariant<decimal>() / holding.Quantity;
+                holding.AveragePrice = krakenPosition.Cost / holding.Quantity;
                 CurrencyPairUtil.DecomposeCurrencyPair(holding.Symbol, out _, out var quote);
                 holding.CurrencySymbol = quote;
-                if (balance.Value["type"].ToString() == "sell")
+                if (krakenPosition.Type == "sell")
                 {
                     holding.Quantity *= -1;
                 }
@@ -697,6 +700,8 @@ namespace QuantConnect.Brokerages.Kraken
                 token,
                 txid = order.BrokerId
             });
+            
+            CancelOrderRateLimitCheck(_symbolMapper.GetBrokerageSymbol(order.Symbol), order.CreatedTime);
             WebSocket.Send(json);
 
             return true;
@@ -774,7 +779,6 @@ namespace QuantConnect.Brokerages.Kraken
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-        /// <exception cref="NotImplementedException"></exception>
         public override void OnMessage(object sender, WebSocketMessage e)
         {
             var data = (WebSocketClientWrapper.TextMessage)e.Data;
@@ -782,7 +786,7 @@ namespace QuantConnect.Brokerages.Kraken
             try
             {
                 var token = JToken.Parse(data.Message);
-                
+
                 if (token is JArray array)
                 {
 
@@ -795,22 +799,23 @@ namespace QuantConnect.Brokerages.Kraken
                 }
                 else if (token is JObject)
                 {
-
-                    if (token["event"].ToString() == "heartbeat")
+                    var response = token.ToObject<KrakenBaseWsResponse>();
+                    if (response.Event == "heartbeat")
                     {
                         return;
                     }
                     
-                    if (token["event"].ToString() == "systemStatus")
+                    if (response.Event == "systemStatus")
                     {
                         OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Information, 200, $"KrakenWS system status: {token["status"]}"));
                         return;
                     }
                     
-                    if (token["event"].ToString() == "addOrderStatus" && token["status"].ToString() != "error")
+                    if (response.Event == "addOrderStatus" && response.Status != "error")
                     {
-                        var userref = token["reqid"].ConvertInvariant<int>();
-                        var brokerId = token["txid"].ToString();
+                        var addOrder = token.ToObject<KrakenWsAddOrderResponse>();
+                        var userref = addOrder.Reqid;
+                        var brokerId = addOrder.Txid;
                         PlacedOrdersDictionary.TryGetValue(userref, out var order);
 
                         if (order == null)
@@ -833,18 +838,18 @@ namespace QuantConnect.Brokerages.Kraken
                         return;
                     }
 
-                    if (token["event"].ToString() == "cancelOrderStatus" && token["status"].ToString() != "error")
+                    if (response.Event == "cancelOrderStatus" && response.Status != "error")
                     {
                         return;
                     }
 
-                    if (token["status"].ToString() == "error")
+                    if (response.Status == "error")
                     {
                         OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Error, -1, $"Error {token["event"]} event. Message: {token["errorMessage"]}"));
                         return;
                     }
                     
-                    if (token["status"].ToString() == "subscribed")
+                    if (response.Status == "subscribed")
                     {
                         OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Information, 200, $"Subscribing to authenticated channel {token["channelName"]}"));
                         return;
@@ -898,12 +903,13 @@ namespace QuantConnect.Brokerages.Kraken
                             feeCurrency = @base;
                         }
                     }
-                    
+
                     if (!data.Value.ToString().Contains("vol_exec")) // status update
                     {
+                        var orderData = data.Value.ToObject<KrakenBaseWsResponse>();
                         if (data.Value.ToString().Contains("status"))
                         {
-                            status = GetOrderStatus(data.Value["status"].ToString());
+                            status = GetOrderStatus(orderData.Status);
                         }
                         else if (data.Value.ToString().Contains("touched"))
                         {
@@ -919,9 +925,10 @@ namespace QuantConnect.Brokerages.Kraken
                     }
                     else
                     {
-                        var fillPrice = data.Value["price"].ConvertInvariant<decimal>();
-                        var fillQuantity = data.Value["vol_exec"].ConvertInvariant<decimal>();
-                        var orderFee = new OrderFee(new CashAmount(data.Value["fee"].ConvertInvariant<decimal>(), feeCurrency));
+                        var orderData = data.Value.ToObject<KrakenWsOpenOrder>();
+                        var fillPrice = orderData.Price;
+                        var fillQuantity = orderData.Vol_exec;
+                        var orderFee = new OrderFee(new CashAmount(orderData.Fee, feeCurrency));
                         OrderDirection direction;
                     
                         if (!data.Value.ToString().Contains("descr"))
@@ -932,19 +939,18 @@ namespace QuantConnect.Brokerages.Kraken
                             }
                             else
                             {
-                                status = GetOrderStatus(data.Value["status"].ToString());
-                                var timestamp = data.Value["lastupdated"].ConvertInvariant<double>();
-                                updTime = timestamp != 0 ? Time.UnixTimeStampToDateTime(timestamp) : DateTime.UtcNow;
+                                status = GetOrderStatus(orderData.Status);
+                                updTime = !string.IsNullOrEmpty(orderData.LastUpdated) ? Time.UnixTimeStampToDateTime(orderData.LastUpdated.ConvertInvariant<double>()) : DateTime.UtcNow;
                             }
 
                             direction = order.Direction;
-                            fillPrice = data.Value["avg_price"].ConvertInvariant<decimal>();
+                            fillPrice = orderData.Avg_Price;
                         }
                         else
                         {
-                            status = GetOrderStatus(data.Value["status"].ToString());
+                            status = GetOrderStatus(orderData.Status);
                         
-                            direction = data.Value["descr"]["type"].ToString() == "sell" ? OrderDirection.Sell : OrderDirection.Buy;
+                            direction = orderData.Descr.Type == "sell" ? OrderDirection.Sell : OrderDirection.Buy;
                         }
 
                         if (fillQuantity != 0 && status != OrderStatus.Filled)
@@ -1320,16 +1326,18 @@ namespace QuantConnect.Brokerages.Kraken
 
             var element = token["result"].First as JProperty;
 
+            var ticker = element.Value.ToObject<KrakenTicker>();
+
             var tick = new Tick
             {
-                AskPrice = element.Value["a"][0].ConvertInvariant<decimal>(),
-                BidPrice = element.Value["b"][0].ConvertInvariant<decimal>(),
-                Value = element.Value["c"][0].ConvertInvariant<decimal>(),
+                AskPrice = ticker.A[0],
+                BidPrice = ticker.B[0],
+                Value = ticker.C[0],
                 Time = DateTime.UtcNow,
                 Symbol = symbol,
                 TickType = TickType.Quote,
-                AskSize = element.Value["a"][2].ConvertInvariant<decimal>(),
-                BidSize = element.Value["b"][2].ConvertInvariant<decimal>(),
+                AskSize = ticker.A[2],
+                BidSize = ticker.B[2],
                 Exchange = "kraken",
             };
             

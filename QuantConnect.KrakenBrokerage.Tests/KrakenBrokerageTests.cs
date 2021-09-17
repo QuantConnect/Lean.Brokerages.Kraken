@@ -83,7 +83,6 @@ namespace QuantConnect.Tests.Brokerages.Kraken
             return tick.AskPrice;
         }
         
-        
         protected override decimal GetDefaultQuantity() => 0.004m; // ETH order minimum
 
         [Test, TestCaseSource(nameof(OrderParameters))]
