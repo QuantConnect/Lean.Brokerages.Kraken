@@ -17,6 +17,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
+using System.Security.Cryptography;
+using System.Text;
 using System.Timers;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -27,6 +29,8 @@ using QuantConnect.Data.Market;
 using QuantConnect.Interfaces;
 using QuantConnect.Logging;
 using QuantConnect.Orders;
+using QuantConnect.Orders.Fees;
+using QuantConnect.Orders.TimeInForces;
 using QuantConnect.Packets;
 using QuantConnect.Securities;
 using QuantConnect.Util;
@@ -42,11 +46,12 @@ namespace QuantConnect.Brokerages.Kraken
     public class KrakenBrokerage : BaseWebsocketsBrokerage, IDataQueueHandler
     {
         private readonly IAlgorithm _algorithm;
+        private readonly ISecurityProvider _securityProvider;
         private readonly IDataAggregator _aggregator;
         private readonly KrakenSymbolMapper _symbolMapper = new KrakenSymbolMapper();
         private LiveNodePacket _job;
 
-        private const string _apiUrl = "https://api.kraken.com/0";
+        private const string _apiUrl = "https://api.kraken.com";
         private const string _wsUrl = "wss://ws.kraken.com";
         private const string _wsAuthUrl = "wss://ws-auth.kraken.com";
         
@@ -66,7 +71,7 @@ namespace QuantConnect.Brokerages.Kraken
         public decimal RateLimitCounter { get; set; }
 
         private readonly Timer _1sRateLimitTimer = new Timer(1000);
-
+        
         private Dictionary<string, int> RateLimitsOrderPerSymbolDictionary { get; set; }
         private Dictionary<string, decimal> RateLimitsCancelPerSymbolDictionary { get; set; }
         
@@ -75,6 +80,8 @@ namespace QuantConnect.Brokerages.Kraken
         
         private readonly RateGate _webSocketRateLimiter = new RateGate(1, TimeSpan.FromSeconds(5));
         
+        private Dictionary<int, Order> PlacedOrdersDictionary { get; set; }
+
         /// <summary>
         /// The api secret spot
         /// </summary>
@@ -106,12 +113,14 @@ namespace QuantConnect.Brokerages.Kraken
             _algorithm = algorithm;
             _job = job;
             _aggregator = aggregator;
+            _securityProvider = algorithm.Portfolio;
             
             ApiKey = apiKey;
             ApiSecret = apiSecret;
 
             RateLimitsOrderPerSymbolDictionary = new Dictionary<string, int>();
             RateLimitsCancelPerSymbolDictionary = new Dictionary<string, decimal>();
+            PlacedOrdersDictionary = new Dictionary<int, Order>();
 
             switch (verificationTier.ToLower())
             {
@@ -148,7 +157,9 @@ namespace QuantConnect.Brokerages.Kraken
             
             _1sRateLimitTimer.Elapsed += DecaySpotRateLimits;
             _1sRateLimitTimer.Start();
-            
+
+            WebSocket.Open += (sender, args) => { SubscribeAuth(); };
+
         }
 
         /// <summary>
@@ -280,26 +291,380 @@ namespace QuantConnect.Brokerages.Kraken
         #endregion
         
 
-        public override bool IsConnected { get; } = true;
+        public override bool IsConnected => WebSocket.IsOpen;
+        
+        
+        public Dictionary<string, string> CreateSignature(string path, long nonce, string body = "")
+        {
+            Dictionary<string, string> header = new();
+            var concat = nonce + body;
+            var hash256 = new SHA256Managed();
+            var hash = hash256.ComputeHash(Encoding.UTF8.GetBytes(concat));
+            var secretDecoded = Convert.FromBase64String(ApiSecret);
+            var hmacsha512 = new HMACSHA512(secretDecoded);
+
+            var urlBytes = Encoding.UTF8.GetBytes(path);
+            var buffer = new byte[urlBytes.Length + hash.Length];
+            Buffer.BlockCopy(urlBytes, 0, buffer, 0, urlBytes.Length);
+            Buffer.BlockCopy(hash, 0, buffer, urlBytes.Length, hash.Length);
+            var hash2 = hmacsha512.ComputeHash(buffer);
+            var finalKey = Convert.ToBase64String(hash2);
+
+            header.Add("API-Key", ApiKey);
+            header.Add("API-Sign", finalKey);
+            return header;
+        }
+        
         public override List<Order> GetOpenOrders()
         {
-            return new ();
+            var nonce = Time.DateTimeToUnixTimeStampMilliseconds(DateTime.UtcNow).ConvertInvariant<long>();
+            var param = new Dictionary<string, object>
+            {
+                {"nonce" , nonce.ToString()}
+            };
+            string query = "/0/private/OpenOrders";
+            
+            var headers = CreateSignature(query, nonce, BuildUrlEncode(param));
+            
+            var request = CreateRequest(query, headers, param, Method.POST);
+
+            var response = ExecuteRestRequest(request);
+            
+            if (response.StatusCode != HttpStatusCode.OK)
+            {
+                throw new Exception($"KrakenBrokerage.GetOpenOrders: request failed: [{(int)response.StatusCode}] {response.StatusDescription}, Content: {response.Content}, ErrorMessage: {response.ErrorMessage}");
+            }
+
+            var token = JToken.Parse(response.Content);
+            
+            List<Order> list = new List<Order>();
+            foreach (JProperty item in token["result"]["open"].Children())
+            {
+                Order order;
+                var quantity = item.Value["vol"].ConvertInvariant<decimal>();
+                var symbol = _symbolMapper.GetLeanSymbolFromOpenOrders(item.Value["descr"]["pair"].ToString());
+                var timestamp = item.Value["opentm"].ConvertInvariant<double>();
+                var time = timestamp != 0 ? Time.UnixTimeStampToDateTime(timestamp) : DateTime.UtcNow;
+                var brokerId = item.Name;
+                
+                var properties = new KrakenOrderProperties();
+
+                var flags = item.Value["oflags"].ToString();
+                if (flags.Contains("post"))
+                {
+                    properties.PostOnly = true;
+                }
+                if (flags.Contains("fcib"))
+                {
+                    properties.FeeInBase = true;
+                }
+                if (flags.Contains("fciq"))
+                {
+                    properties.FeeInQuote = true;
+                }
+                if (flags.Contains("nompp"))
+                {
+                    properties.NoMarketPriceProtection = true;
+                }
+
+                switch (item.Value["descr"]["ordertype"].ToString().LazyToUpper())
+                {
+                    case "MARKET":
+                        order = new MarketOrder(symbol, quantity, time, properties: properties);
+                        break;
+                    case "LIMIT":
+                        var limPrice = item.Value["descr"]["price"].ConvertInvariant<decimal>();
+                        order = new LimitOrder(symbol, quantity, limPrice, time, properties: properties)
+                        {
+                            BrokerId = {brokerId}
+                        };
+                        break;
+                    case "STOP-LOSS":
+                        var stopPrice = item.Value["descr"]["price"].ConvertInvariant<decimal>();
+                        order = new StopMarketOrder(symbol, quantity, stopPrice, time, properties: properties)               
+                        {
+                            BrokerId = {brokerId}
+                        };
+                        break;
+                    case "TAKE-PROFIT":
+                        var tpPrice = item.Value["price"].ConvertInvariant<decimal>();
+                        order = new StopMarketOrder(symbol, quantity, tpPrice, time, properties: properties)
+                        {
+                            BrokerId = {brokerId}
+                        };
+                        break;
+                    case "STOP-LOSS-LIMIT":
+                        var stpPrice = item.Value["descr"]["price"].ConvertInvariant<decimal>();
+                        var limitPrice = item.Value["descr"]["price2"].ConvertInvariant<decimal>();
+                        order = new StopLimitOrder(symbol, quantity, stpPrice, limitPrice, time, properties: properties)
+                        {
+                            BrokerId = {brokerId}
+                        };
+                        break;
+                    case "TAKE-PROFIT-LIMIT":
+                        var takePrice = item.Value["descr"]["price"].ConvertInvariant<decimal>();
+                        var lmtPrice = item.Value["descr"]["price2"].ConvertInvariant<decimal>();
+                        order = new LimitIfTouchedOrder(symbol, quantity, takePrice, lmtPrice, time, properties: properties)
+                        {
+                            BrokerId = {brokerId}
+                        };
+                        break;
+                    default:
+                        OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Error, -1,
+                            "BinanceBrokerage.GetOpenOrders: Unsupported order type returned from brokerage: " + item.Type));
+                        continue;
+                }
+
+                order.Status = GetOrderStatus(item.Value["status"].ToString());
+
+                if (order.Status.IsOpen())
+                {
+                    var cached = CachedOrderIDs.Where(c => c.Value.BrokerId.Contains(order.BrokerId.First())).ToList();
+                    if (cached.Any())
+                    {
+                        CachedOrderIDs[cached.First().Key] = order;
+                    }
+                }
+            
+                list.Add(order);
+            }
+            
+            return list;
+            
         }
 
         public override List<Holding> GetAccountHoldings()
         {
-            return new ();
+            var nonce = Time.DateTimeToUnixTimeStampMilliseconds(DateTime.UtcNow).ConvertInvariant<long>();
+            var param = new Dictionary<string, object>
+            {
+                {"nonce" , nonce.ToString()},
+                {"docalcs", true}
+            };
+            string query = "/0/private/OpenPositions";
+            
+            var headers = CreateSignature(query, nonce, BuildUrlEncode(param));
+            
+            var request = CreateRequest(query, headers, param, Method.POST);
+
+            var response = ExecuteRestRequest(request);
+            
+            if (response.StatusCode != HttpStatusCode.OK)
+            {
+                throw new Exception($"KrakenBrokerage.GetAccountHoldings: request failed: [{(int)response.StatusCode}] {response.StatusDescription}, Content: {response.Content}, ErrorMessage: {response.ErrorMessage}");
+            }
+
+            var token = JToken.Parse(response.Content);
+
+            var holdings = new List<Holding>();
+
+            foreach (JProperty balance in token["result"].Children())
+            {
+                var holding = new Holding
+                {
+                    Symbol = _symbolMapper.GetLeanSymbol(balance.Value["pair"].ToString()),
+                    Quantity = balance.Value["vol"].ConvertInvariant<decimal>(),
+                    UnrealizedPnL = balance.Value["net"].ConvertInvariant<decimal>(),
+                    MarketValue = balance.Value["value"].ConvertInvariant<decimal>(),
+                };
+
+                holding.AveragePrice = balance.Value["cost"].ConvertInvariant<decimal>() / holding.Quantity;
+                CurrencyPairUtil.DecomposeCurrencyPair(holding.Symbol, out _, out var quote);
+                holding.CurrencySymbol = quote;
+                if (balance.Value["type"].ToString() == "sell")
+                {
+                    holding.Quantity *= -1;
+                }
+                
+                holdings.Add(holding);
+            }
+
+            return holdings;
+            
         }
 
         public override List<CashAmount> GetCashBalance()
         {
-            return new ();
+            var nonce = Time.DateTimeToUnixTimeStampMilliseconds(DateTime.UtcNow).ConvertInvariant<long>();
+            var param = new Dictionary<string, object>
+            {
+                {"nonce" , nonce.ToString()}
+            };
+            string query = "/0/private/Balance";
+            
+            var headers = CreateSignature(query, nonce, BuildUrlEncode(param));
+
+            var request = CreateRequest(query, headers, param, Method.POST);
+
+            var response = ExecuteRestRequest(request);
+            
+            if (response.StatusCode != HttpStatusCode.OK)
+            {
+                throw new Exception($"KrakenBrokerage.GetCashBalance: request failed: [{(int)response.StatusCode}] {response.StatusDescription}, Content: {response.Content}, ErrorMessage: {response.ErrorMessage}");
+            }
+
+            var token = JToken.Parse(response.Content);
+
+            var cash = new List<CashAmount>();
+
+            foreach (JProperty balance in token["result"].Children())
+            {
+                cash.Add(new CashAmount(balance.Value.ConvertInvariant<decimal>(), _symbolMapper.ConvertCurrency(balance.Name)));
+            }
+
+            return cash;
         }
 
         public override bool PlaceOrder(Order order)
         {
-            throw new NotImplementedException();
+            var token = GetWebsocketToken();
+
+            var symbol = _symbolMapper.GetWebsocketSymbol(order.Symbol);
+
+            var q = order.AbsoluteQuantity;
+            var parameters = new JsonObject
+            {
+                {"event", "addOrder"},
+                {"pair", symbol},
+                {"volume", q.ToStringInvariant()},
+                {"type", order.Direction == OrderDirection.Buy ? "buy" : "sell" },
+                {"token", token},
+            };
+
+            var rand = new Random();
+
+            int id = 0;
+            do
+            {
+                id = rand.Next();
+            } while (PlacedOrdersDictionary.ContainsKey(id));
+            
+            parameters.Add("reqid", id);
+            PlacedOrdersDictionary[id] = order;
+            
+            if (order is MarketOrder)
+            {
+                parameters.Add("ordertype", "market");
+            }
+            else if (order is LimitOrder limitOrd)
+            {
+                parameters.Add("ordertype", "limit");
+                parameters.Add("price", limitOrd.LimitPrice.ToStringInvariant());
+            }
+            else if (order is StopLimitOrder stopLimitOrder)
+            {
+                parameters.Add("ordertype", "stop-loss-limit");
+                parameters.Add("price", stopLimitOrder.StopPrice.ToStringInvariant());
+                parameters.Add("price2", stopLimitOrder.LimitPrice.ToStringInvariant());
+            }
+            else if (order is StopMarketOrder stopOrder)
+            {
+                parameters.Add("ordertype", "stop-loss");
+                parameters.Add("price", stopOrder.StopPrice.ToStringInvariant());
+            }
+            else if (order is LimitIfTouchedOrder limitIfTouchedOrder)
+            {
+                parameters.Add("ordertype", "take-profit-limit");
+                parameters.Add("price", limitIfTouchedOrder.TriggerPrice.ToStringInvariant());
+                parameters.Add("price2", limitIfTouchedOrder.LimitPrice.ToStringInvariant());
+            }
+
+            
+            if (order.Properties is KrakenOrderProperties krakenOrderProperties)
+            {
+                StringBuilder sb = new StringBuilder();
+                if (krakenOrderProperties.PostOnly)
+                {
+                    sb.Append("post");
+                }
+
+                if (krakenOrderProperties.FeeInBase)
+                {
+                    sb.Append(",fcib");
+                }
+                
+                if (krakenOrderProperties.FeeInQuote)
+                {
+                    sb.Append(",fciq");
+                }
+                
+                if (krakenOrderProperties.NoMarketPriceProtection)
+                {
+                    sb.Append(",nompp");
+                }
+
+                if (sb.Length != 0)
+                {
+                    parameters.Add("oflags", sb.ToString());
+                }
+
+                if (krakenOrderProperties.ConditionalOrder != null)
+                {
+                    if (krakenOrderProperties.ConditionalOrder is MarketOrder)
+                    {
+                        throw new BrokerageException($"KrakenBrokerage.PlaceOrder: Conditional order type can't be Market. Specify other order type");
+                    }
+                    else if (krakenOrderProperties.ConditionalOrder is LimitOrder limitOrd)
+                    {
+                        parameters.Add("close[ordertype]", "limit");
+                        parameters.Add("close[price]", limitOrd.LimitPrice.ToStringInvariant());
+                    }
+                    else if (krakenOrderProperties.ConditionalOrder is StopLimitOrder stopLimitOrder)
+                    {
+                        parameters.Add("close[ordertype]", "stop-loss-limit");
+                        parameters.Add("close[price]", stopLimitOrder.StopPrice.ToStringInvariant());
+                        parameters.Add("close[price2]", stopLimitOrder.LimitPrice.ToStringInvariant());
+                    }
+                    else if (krakenOrderProperties.ConditionalOrder is StopMarketOrder stopOrder)
+                    {
+                        parameters.Add("close[ordertype]", "stop-loss");
+                        parameters.Add("close[price]", stopOrder.StopPrice.ToStringInvariant());
+                    }
+                    else if (krakenOrderProperties.ConditionalOrder is LimitIfTouchedOrder limitIfTouchedOrder)
+                    {
+                        parameters.Add("close[ordertype]", "take-profit-limit");
+                        parameters.Add("close[price]", limitIfTouchedOrder.TriggerPrice.ToStringInvariant());
+                        parameters.Add("close[price2]", limitIfTouchedOrder.LimitPrice.ToStringInvariant());
+                    }
+                }
+            }
+
+            try
+            {
+                var security = _securityProvider.GetSecurity(order.Symbol);
+
+                var leverage = security.BuyingPowerModel.GetLeverage(security);
+                if (leverage > 1)
+                {
+                    parameters.Add("leverage", leverage.ToStringInvariant());
+                }
+            }
+            catch (Exception e)
+            {
+                OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, 1, $"Got error when specifying leverage. Default leverage set. Error: {e.Message}"));
+            }
+
+            var tif = order.TimeInForce;
+
+            if (tif is GoodTilCanceledTimeInForce)
+            {
+                parameters.Add("timeinforce", "GTC");
+            }
+            else if (tif is GoodTilDateTimeInForce gtd)
+            {
+                parameters.Add("timeinforce", "GTD");
+                parameters.Add("expiretm", Time.DateTimeToUnixTimeStamp(gtd.Expiry).ConvertInvariant<long>());
+            }
+            
+            var json = JsonConvert.SerializeObject(parameters);
+
+            OrderRateLimitCheck(symbol);
+            
+            WebSocket.Send(json);
+
+            return true;
         }
+
         /// <summary>
         /// This operation is not supported
         /// </summary>
@@ -310,9 +675,89 @@ namespace QuantConnect.Brokerages.Kraken
             throw new NotSupportedException("KrakenBrokerage.UpdateOrder: Order update not supported. Please cancel and re-create.");
         }
 
+        /// <summary>
+        /// Cancels the order with the specified ID
+        /// </summary>
+        /// <param name="order">The order to cancel</param>
+        /// <returns>True if the request was submitted for cancellation, false otherwise</returns>
         public override bool CancelOrder(Order order)
         {
-            throw new NotImplementedException();
+            Log.Trace("KrakenBrokerage.CancelOrder(): {0}", order);
+
+            if (!order.BrokerId.Any())
+            {
+                // we need the brokerage order id in order to perform a cancellation
+                Log.Trace("KrakenBrokerage.CancelOrder(): Unable to cancel order without BrokerId.");
+                return false;
+            }
+            var token = GetWebsocketToken();
+            var json = JsonConvert.SerializeObject(new
+            {
+                @event = "cancelOrder",
+                token,
+                txid = order.BrokerId
+            });
+            WebSocket.Send(json);
+
+            return true;
+        }
+
+        #region IDataQueueHandler
+        
+        /// <summary>
+        /// Get websocket token. Needs when subscribing to private feeds 
+        /// </summary>
+        /// <returns></returns>
+        /// <exception cref="Exception"></exception>
+        private string GetWebsocketToken()
+        {
+            var nonce = Time.DateTimeToUnixTimeStampMilliseconds(DateTime.UtcNow).ConvertInvariant<long>();
+            var param = new Dictionary<string, object>
+            {
+                {"nonce" , nonce.ToString()}
+            };
+            string query = "/0/private/GetWebSocketsToken";
+            
+            var headers = CreateSignature(query, nonce, BuildUrlEncode(param));
+
+            var request = CreateRequest(query, headers, param, Method.POST);
+
+            var response = ExecuteRestRequest(request);
+            
+            if (response.StatusCode != HttpStatusCode.OK)
+            {
+                throw new Exception($"KrakenBrokerage.GetCashBalance: request failed: [{(int)response.StatusCode}] {response.StatusDescription}, Content: {response.Content}, ErrorMessage: {response.ErrorMessage}");
+            }
+
+            var token = JToken.Parse(response.Content);
+
+            return token["result"]["token"].ToString();
+        }
+
+        /// <summary>
+        /// Sets the job we're subscribing for
+        /// </summary>
+        /// <param name="job">Job we're subscribing for</param>
+        public void SetJob(LiveNodePacket job)
+        {
+        }
+
+        private void SubscribeAuth()
+        {
+            if (WebSocket.IsOpen)
+            {
+                var token = GetWebsocketToken();
+
+                WebSocket.Send(JsonConvert.SerializeObject(new
+                {
+                    @event = "subscribe",
+                    subscription = new
+                    {
+                        token,
+                        name = "openOrders"
+                    }
+                }));
+            }
         }
         
         /// <summary>
@@ -324,15 +769,236 @@ namespace QuantConnect.Brokerages.Kraken
             _webSocketRateLimiter.DisposeSafely();
         }
 
+        /// <summary>
+        /// Private message parser
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        /// <exception cref="NotImplementedException"></exception>
         public override void OnMessage(object sender, WebSocketMessage e)
         {
-            throw new NotImplementedException();
+            var data = (WebSocketClientWrapper.TextMessage)e.Data;
+
+            try
+            {
+                var token = JToken.Parse(data.Message);
+                
+                if (token is JArray array)
+                {
+
+                    if (array[1].ToString() == "openOrders")
+                    {
+                        EmitOrderEvent(array.First);
+                        return;
+                    }
+
+                }
+                else if (token is JObject)
+                {
+
+                    if (token["event"].ToString() == "heartbeat")
+                    {
+                        return;
+                    }
+                    
+                    if (token["event"].ToString() == "systemStatus")
+                    {
+                        OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Information, 200, $"KrakenWS system status: {token["status"]}"));
+                        return;
+                    }
+                    
+                    if (token["event"].ToString() == "addOrderStatus" && token["status"].ToString() != "error")
+                    {
+                        var userref = token["reqid"].ConvertInvariant<int>();
+                        var brokerId = token["txid"].ToString();
+                        PlacedOrdersDictionary.TryGetValue(userref, out var order);
+
+                        if (order == null)
+                        {
+                            return; // order placed not by Lean - skip
+                        }
+                        
+                        if (CachedOrderIDs.ContainsKey(order.Id))
+                        {
+                            CachedOrderIDs[order.Id].BrokerId.Clear();
+                            CachedOrderIDs[order.Id].BrokerId.Add(brokerId);
+                        }
+                        else
+                        {
+                            order.BrokerId.Add(brokerId);
+                            CachedOrderIDs.TryAdd(order.Id, order);
+                        }
+
+                        PlacedOrdersDictionary.Remove(userref);
+                        return;
+                    }
+
+                    if (token["event"].ToString() == "cancelOrderStatus" && token["status"].ToString() != "error")
+                    {
+                        return;
+                    }
+
+                    if (token["status"].ToString() == "error")
+                    {
+                        OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Error, -1, $"Error {token["event"]} event. Message: {token["errorMessage"]}"));
+                        return;
+                    }
+                    
+                    if (token["status"].ToString() == "subscribed")
+                    {
+                        OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Information, 200, $"Subscribing to authenticated channel {token["channelName"]}"));
+                        return;
+                    }
+                    
+                }
+                
+                OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, 10, $"Unable to parse authenticated websocket message. Don't have parser for this message: {data.Message}."));
+            }
+            catch (Exception exception)
+            {
+                OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Error, -1, $"Parsing wss message failed. Data: {data.Message} Exception: {exception}"));
+                throw;
+            }
+        }
+        
+        private void EmitOrderEvent(JToken update)
+        {
+            foreach (var trade in update.Children())
+            {
+                try
+                {
+                    var data = trade.First as JProperty;
+                    var brokerId = data.Name;
+
+                    var order = CachedOrderIDs
+                        .FirstOrDefault(o => o.Value.BrokerId.Contains(brokerId))
+                        .Value;
+
+                    if (order == null)
+                    {
+                        order = _algorithm.Transactions.GetOrderByBrokerageId(brokerId);
+                        if (order == null)
+                        {
+                            Log.Error($"OnOrderUpdate(): order not found: BrokerId: {brokerId}");
+                            continue;
+                        }
+                    }
+
+                    var updTime = DateTime.UtcNow;
+                    CurrencyPairUtil.DecomposeCurrencyPair(order.Symbol, out var @base, out var quote);
+                    OrderEvent orderEvent = null;
+                    
+                    var status = OrderStatus.New;
+
+                    var feeCurrency = quote;
+                    if (order.Properties is KrakenOrderProperties krakenOrderProperties)
+                    {
+                        if (krakenOrderProperties.FeeInBase)
+                        {
+                            feeCurrency = @base;
+                        }
+                    }
+                    
+                    if (!data.Value.ToString().Contains("vol_exec")) // status update
+                    {
+                        if (data.Value.ToString().Contains("status"))
+                        {
+                            status = GetOrderStatus(data.Value["status"].ToString());
+                        }
+                        else if (data.Value.ToString().Contains("touched"))
+                        {
+                            status = OrderStatus.UpdateSubmitted;
+                        }
+
+                        orderEvent = new OrderEvent
+                        (
+                            order.Id, order.Symbol, updTime, status,
+                            order.Direction, 0, 0,
+                            new OrderFee(new CashAmount(0m, feeCurrency)), $"Kraken Order Event {order.Direction}"
+                        );
+                    }
+                    else
+                    {
+                        var fillPrice = data.Value["price"].ConvertInvariant<decimal>();
+                        var fillQuantity = data.Value["vol_exec"].ConvertInvariant<decimal>();
+                        var orderFee = new OrderFee(new CashAmount(data.Value["fee"].ConvertInvariant<decimal>(), feeCurrency));
+                        OrderDirection direction;
+                    
+                        if (!data.Value.ToString().Contains("descr"))
+                        {
+                            if (!data.Value.ToString().Contains("status") && fillQuantity >= order.AbsoluteQuantity)
+                            {
+                                status = OrderStatus.Filled;
+                            }
+                            else
+                            {
+                                status = GetOrderStatus(data.Value["status"].ToString());
+                                var timestamp = data.Value["lastupdated"].ConvertInvariant<double>();
+                                updTime = timestamp != 0 ? Time.UnixTimeStampToDateTime(timestamp) : DateTime.UtcNow;
+                            }
+
+                            direction = order.Direction;
+                            fillPrice = data.Value["avg_price"].ConvertInvariant<decimal>();
+                        }
+                        else
+                        {
+                            status = GetOrderStatus(data.Value["status"].ToString());
+                        
+                            direction = data.Value["descr"]["type"].ToString() == "sell" ? OrderDirection.Sell : OrderDirection.Buy;
+                        }
+
+                        if (fillQuantity != 0 && status != OrderStatus.Filled)
+                        {
+                            status = OrderStatus.PartiallyFilled;
+                        }
+
+                        orderEvent = new OrderEvent
+                        (
+                            order.Id, order.Symbol, updTime, status,
+                            direction, fillPrice, fillQuantity,
+                            orderFee, $"Kraken Order Event {direction}"
+                        );
+                    }
+                    
+                    // if the order is closed, we no longer need it in the active order list
+                    if (status is OrderStatus.Filled or OrderStatus.Canceled )
+                    {
+                        Order outOrder;
+                        CachedOrderIDs.TryRemove(order.Id, out outOrder);
+                    }
+
+                    OnOrderEvent(orderEvent);
+                }
+                catch (Exception e)
+                {
+                    Log.Error(e);
+                    throw;
+                }
+            }
         }
 
+        private OrderStatus GetOrderStatus(string status) => status switch
+        {
+            "pending" => OrderStatus.New,
+            "open" => OrderStatus.Submitted,
+            "closed" => OrderStatus.Filled,
+            "expired" => OrderStatus.Canceled,
+            "canceled" => OrderStatus.Canceled,
+            _ => OrderStatus.None
+        };
+
+        /// <summary>
+        /// Should be empty as handled in <see cref="BrokerageMultiWebSocketSubscriptionManager"/>
+        /// </summary>
+        /// <param name="symbols"></param>
         public override void Subscribe(IEnumerable<Symbol> symbols)
         {
-            throw new NotImplementedException();
+            
         }
+
+        #endregion
+        
+
 
         #region Aggregator Update
         
@@ -365,14 +1031,6 @@ namespace QuantConnect.Brokerages.Kraken
         {
             SubscriptionManager.Unsubscribe(dataConfig);
             _aggregator.Remove(dataConfig);
-        }
-
-        /// <summary>
-        /// Sets the job we're subscribing for
-        /// </summary>
-        /// <param name="job">Job we're subscribing for</param>
-        public void SetJob(LiveNodePacket job)
-        {
         }
         
         /// <summary>
@@ -585,7 +1243,7 @@ namespace QuantConnect.Brokerages.Kraken
             
             var marketSymbol = _symbolMapper.GetBrokerageSymbol(request.Symbol);
             var resolution = ConvertResolution(request.Resolution);
-            string url = _apiUrl + $"/public/OHLC?pair={marketSymbol}&interval={resolution}";
+            string url = _apiUrl + $"/0/public/OHLC?pair={marketSymbol}&interval={resolution}";
             var start = (long) Time.DateTimeToUnixTimeStamp(request.StartTimeUtc);
             var end = (long) Time.DateTimeToUnixTimeStamp(request.EndTimeUtc);
             var resolutionInMs = (long)request.Resolution.ToTimeSpan().TotalSeconds;
@@ -644,13 +1302,46 @@ namespace QuantConnect.Brokerages.Kraken
             }
 
         }
+
+        public Tick GetTick(Symbol symbol)
+        {
+            var marketSymbol = _symbolMapper.GetBrokerageSymbol(symbol);
+
+            var restRequest = CreateRequest($"/0/public/Ticker?pair={marketSymbol}");
+
+            var response = ExecuteRestRequest(restRequest);
+            
+            if (response.StatusCode != HttpStatusCode.OK)
+            {
+                throw new Exception($"KrakenBrokerage.GetTick: request failed: [{(int)response.StatusCode}] {response.StatusDescription}, Content: {response.Content}, ErrorMessage: {response.ErrorMessage}");
+            }
+
+            var token = JToken.Parse(response.Content);
+
+            var element = token["result"].First as JProperty;
+
+            var tick = new Tick
+            {
+                AskPrice = element.Value["a"][0].ConvertInvariant<decimal>(),
+                BidPrice = element.Value["b"][0].ConvertInvariant<decimal>(),
+                Value = element.Value["c"][0].ConvertInvariant<decimal>(),
+                Time = DateTime.UtcNow,
+                Symbol = symbol,
+                TickType = TickType.Quote,
+                AskSize = element.Value["a"][2].ConvertInvariant<decimal>(),
+                BidSize = element.Value["b"][2].ConvertInvariant<decimal>(),
+                Exchange = "kraken",
+            };
+            
+            return tick;
+        }
         
-        private static string BuildUrlEncode(IDictionary<string, string> args) => string.Join(
+        private static string BuildUrlEncode(IDictionary<string, object> args) => string.Join(
             "&",
             args.Where(x => x.Value != null).Select(x => x.Key + "=" + x.Value)
         );
         
-        private IRestRequest CreateRequest(string query, Dictionary<string, string> headers = null, IDictionary<string, string> requestBody = null, Method method = Method.GET)
+        private IRestRequest CreateRequest(string query, Dictionary<string, string> headers = null, IDictionary<string, object> requestBody = null, Method method = Method.GET)
         {
             RestRequest request = new RestRequest(query) { Method = method };
 
@@ -685,7 +1376,7 @@ namespace QuantConnect.Brokerages.Kraken
         /// <param name="request"></param>
         /// <param name="isOrderRequest">for order requests applies other rate limit checks</param>
         /// <returns></returns>
-        private IRestResponse ExecuteRestRequest(IRestRequest request, bool isOrderRequest = false)
+        private IRestResponse ExecuteRestRequest(IRestRequest request)
         {
             const int maxAttempts = 10;
             var attempts = 0;
@@ -693,11 +1384,8 @@ namespace QuantConnect.Brokerages.Kraken
 
             do
             {
-                if (!isOrderRequest)
-                {
-                    RateLimitCheck();
-                }
-
+                RateLimitCheck();
+                
                 response = RestClient.Execute(request);
                 // 429 status code: Too Many Requests
             } while (++attempts < maxAttempts && (int)response.StatusCode == 429);

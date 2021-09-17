@@ -37,7 +37,6 @@ namespace QuantConnect.Brokerages.Kraken
             {"ZEUR", "EUR"},
             {"ZGBP", "GBP"},
             {"ZAUD", "AUD"},
-            {"ZAUD", "AUD"},
             {"ZCAD", "CAD"},
             {"XXBT", "BTC"},
             {"XXRP", "XRP"},
@@ -120,6 +119,29 @@ namespace QuantConnect.Brokerages.Kraken
             }
 
             return symbol;
+        }
+        
+        public Symbol GetLeanSymbolFromOpenOrders(string brokerageSymbol, SecurityType securityType = SecurityType.Crypto, string market = Market.Kraken, DateTime expirationDate = default(DateTime),
+            decimal strike = 0, OptionRight optionRight = OptionRight.Call)
+        {
+            if (market != Market.Kraken)
+            {
+                throw new ArgumentException($"This method applies only for Kraken symbols. Try to use other class like {nameof(SymbolPropertiesDatabaseSymbolMapper)}");
+            }
+            
+            if (securityType != SecurityType.Crypto)
+            {
+                throw new ArgumentException($"Only crypto symbols available in Kraken now. Current symbol security type: {securityType}");
+            }
+
+            var symbol = _symbolPropertiesMap.Where(kvp => kvp.Value.Description.Replace("/", string.Empty) == brokerageSymbol);
+            
+            if (symbol == null || !symbol.Any())
+            {
+                throw new ArgumentException($"Unknown symbol: {brokerageSymbol}/{securityType}/{market}");
+            }
+
+            return symbol.First().Key;
         }
         
         /// <summary>

@@ -25,6 +25,7 @@ using QuantConnect.Data.Market;
 using QuantConnect.Interfaces;
 using QuantConnect.Lean.Engine.DataFeeds;
 using QuantConnect.Logging;
+using QuantConnect.Orders;
 using QuantConnect.Securities;
 using QuantConnect.Tests.Common.Securities;
 
@@ -58,52 +59,82 @@ namespace QuantConnect.Tests.Brokerages.Kraken
 
         protected override Symbol Symbol => StaticSymbol;
         
-        private static Symbol StaticSymbol => Symbol.Create("ETHUSD", SecurityType.Crypto, Market.Bitfinex);
-        protected override SecurityType SecurityType { get; }
-        protected override bool IsAsync()
+        private static Symbol StaticSymbol => Symbol.Create("ETHUSD", SecurityType.Crypto, Market.Kraken);
+        
+        public static TestCaseData[] OrderParameters => new[]
         {
-            throw new System.NotImplementedException();
-        }
+            new TestCaseData(new MarketOrderTestParameters(StaticSymbol)).SetName("MarketOrder"),
+            new TestCaseData(new LimitOrderTestParameters(StaticSymbol, 5000, 100)).SetName("LimitOrder"),
+            new TestCaseData(new StopLimitOrderTestParameters(StaticSymbol, 5000, 100)).SetName("StopLimitOrder"),
+            new TestCaseData(new StopMarketOrderTestParameters(StaticSymbol, 5000, 100)).SetName("StopMarketOrder"),
+            new TestCaseData(new LimitIfTouchedOrderTestParameters(StaticSymbol, 5000, 100)).SetName("LimitIfTouchedOrder"),
+        };
+
+        protected override SecurityType SecurityType => SecurityType.Crypto;
+        protected override bool IsAsync() => true;
+
+        protected override bool IsCancelAsync() => true;
 
         protected override decimal GetAskPrice(Symbol symbol)
         {
-            throw new System.NotImplementedException();
+            var brokerage = (KrakenBrokerage)Brokerage;
+            var tick = brokerage.GetTick(symbol);
+
+            return tick.AskPrice;
+        }
+        
+        
+        protected override decimal GetDefaultQuantity() => 0.004m; // ETH order minimum
+
+        [Test, TestCaseSource(nameof(OrderParameters))]
+        public override void CancelOrders(OrderTestParameters parameters)
+        {
+            base.CancelOrders(parameters);
+        }
+
+        [Test, TestCaseSource(nameof(OrderParameters))]
+        public override void LongFromZero(OrderTestParameters parameters)
+        {
+            base.LongFromZero(parameters);
+        }
+
+        [Test, TestCaseSource(nameof(OrderParameters))]
+        public override void CloseFromLong(OrderTestParameters parameters)
+        {
+            base.CloseFromLong(parameters);
+        }
+
+        [Test, TestCaseSource(nameof(OrderParameters))]
+        public override void ShortFromZero(OrderTestParameters parameters)
+        {
+            base.ShortFromZero(parameters);
+        }
+
+        [Test, TestCaseSource(nameof(OrderParameters))]
+        public override void CloseFromShort(OrderTestParameters parameters)
+        {
+            base.CloseFromShort(parameters);
+        }
+
+        [Test, TestCaseSource(nameof(OrderParameters))]
+        public override void ShortFromLong(OrderTestParameters parameters)
+        {
+            base.ShortFromLong(parameters);
+        }
+
+        [Test, TestCaseSource(nameof(OrderParameters))]
+        public override void LongFromShort(OrderTestParameters parameters)
+        {
+            base.LongFromShort(parameters);
         }
         
         [Test]
-        public void GetsTickData()
+        public void CloseOrder()
         {
-            var cancelationToken = new CancellationTokenSource();
-            var brokerage = (KrakenBrokerage)Brokerage;
+            var id = "OTVPA2-AVWQN-AM5PEU";
+            var cancel = Brokerage.CancelOrder(new MarketOrder {BrokerId = {id}});
 
-            var configs = new SubscriptionDataConfig[] {
-                GetSubscriptionDataConfig<QuoteBar>(Symbol.Create("EURUSD", SecurityType.Crypto, Market.Kraken), Resolution.Tick),
-                GetSubscriptionDataConfig<QuoteBar>(Symbol.Create("BTCUSD", SecurityType.Crypto, Market.Kraken), Resolution.Tick),
-                GetSubscriptionDataConfig<QuoteBar>(Symbol.Create("ETHBTC", SecurityType.Crypto, Market.Kraken), Resolution.Tick),
-            };
-
-            foreach (var config in configs)
-            {
-                ProcessFeed(
-                    brokerage.Subscribe(config, (s, e) => { }),
-                    cancelationToken,
-                    (tick) => {
-                        if (tick != null)
-                        {
-                            Log.Trace("{0}: {1} - {2} / {3}", tick.Time.ToStringInvariant("yyyy-MM-dd HH:mm:ss.fff"), tick.Symbol, (tick as Tick)?.BidPrice, (tick as Tick)?.AskPrice);
-                        }
-                    });
-            }
-
-            Thread.Sleep(20000);
-
-            foreach (var config in configs)
-            {
-                brokerage.Unsubscribe(config);
-                Thread.Sleep(20000);
-            }
-
-            cancelationToken.Cancel();
+            Console.ReadLine();
         }
     }
 }
