@@ -149,7 +149,7 @@ namespace QuantConnect.Brokerages.Kraken
                         {
                             status = GetOrderStatus(orderData.Status);
                         }
-                        else if (data.Value.ToString().Contains("touched"))
+                        else if (data.Value.ToString().Contains("touched")) // Limit if touched order have been touched
                         {
                             status = OrderStatus.UpdateSubmitted;
                         }
@@ -171,15 +171,8 @@ namespace QuantConnect.Brokerages.Kraken
 
                         if (!data.Value.ToString().Contains("descr"))
                         {
-                            if (!data.Value.ToString().Contains("status") && fillQuantity >= order.AbsoluteQuantity)
-                            {
-                                status = OrderStatus.Filled;
-                            }
-                            else
-                            {
-                                status = GetOrderStatus(orderData.Status);
-                                updTime = !string.IsNullOrEmpty(orderData.LastUpdated) ? Time.UnixTimeStampToDateTime(orderData.LastUpdated.ConvertInvariant<double>()) : DateTime.UtcNow;
-                            }
+                            status = GetOrderStatus(orderData.Status);
+                            updTime = !string.IsNullOrEmpty(orderData.LastUpdated) ? Time.UnixTimeStampToDateTime(orderData.LastUpdated.ConvertInvariant<double>()) : DateTime.UtcNow;
 
                             direction = order.Direction;
                             fillPrice = orderData.Avg_Price;
