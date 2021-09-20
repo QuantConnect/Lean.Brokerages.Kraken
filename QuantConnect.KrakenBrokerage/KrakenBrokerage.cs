@@ -80,6 +80,9 @@ namespace QuantConnect.Brokerages.Kraken
         
         private readonly RateGate _webSocketRateLimiter = new RateGate(1, TimeSpan.FromSeconds(5));
         
+        /// <summary>
+        /// Needed to catch placed orders in websocket, then moves to CachedOrderIDs.
+        /// </summary>
         private Dictionary<int, Order> PlacedOrdersDictionary { get; set; }
 
         /// <summary>
@@ -254,28 +257,12 @@ namespace QuantConnect.Brokerages.Kraken
         #endregion
         
         public override bool IsConnected => WebSocket.IsOpen;
-        
-        public Dictionary<string, string> CreateSignature(string path, long nonce, string body = "")
-        {
-            Dictionary<string, string> header = new();
-            var concat = nonce + body;
-            var hash256 = new SHA256Managed();
-            var hash = hash256.ComputeHash(Encoding.UTF8.GetBytes(concat));
-            var secretDecoded = Convert.FromBase64String(ApiSecret);
-            var hmacsha512 = new HMACSHA512(secretDecoded);
 
-            var urlBytes = Encoding.UTF8.GetBytes(path);
-            var buffer = new byte[urlBytes.Length + hash.Length];
-            Buffer.BlockCopy(urlBytes, 0, buffer, 0, urlBytes.Length);
-            Buffer.BlockCopy(hash, 0, buffer, urlBytes.Length, hash.Length);
-            var hash2 = hmacsha512.ComputeHash(buffer);
-            var finalKey = Convert.ToBase64String(hash2);
-
-            header.Add("API-Key", ApiKey);
-            header.Add("API-Sign", finalKey);
-            return header;
-        }
-        
+        /// <summary>
+        /// Gets all Kraken orders not yet closed
+        /// </summary>
+        /// <returns></returns>
+        /// <exception cref="Exception"></exception>
         public override List<Order> GetOpenOrders()
         {
             var nonce = Time.DateTimeToUnixTimeStampMilliseconds(DateTime.UtcNow).ConvertInvariant<long>();
@@ -393,6 +380,11 @@ namespace QuantConnect.Brokerages.Kraken
             
         }
 
+        /// <summary>
+        /// Get Kraken Holdings
+        /// </summary>
+        /// <returns></returns>
+        /// <exception cref="Exception"></exception>
         public override List<Holding> GetAccountHoldings()
         {
             var nonce = Time.DateTimeToUnixTimeStampMilliseconds(DateTime.UtcNow).ConvertInvariant<long>();
@@ -443,7 +435,12 @@ namespace QuantConnect.Brokerages.Kraken
             return holdings;
             
         }
-
+        
+        /// <summary>
+        /// Get Kraken Balances
+        /// </summary>
+        /// <returns></returns>
+        /// <exception cref="Exception"></exception>
         public override List<CashAmount> GetCashBalance()
         {
             var nonce = Time.DateTimeToUnixTimeStampMilliseconds(DateTime.UtcNow).ConvertInvariant<long>();
@@ -468,14 +465,21 @@ namespace QuantConnect.Brokerages.Kraken
 
             var cash = new List<CashAmount>();
 
-            foreach (JProperty balance in token["result"].Children())
+            var dictBalances = token["result"].ToObject<Dictionary<string, decimal>>();
+
+            foreach (var balance in dictBalances)
             {
-                cash.Add(new CashAmount(balance.Value.ConvertInvariant<decimal>(), _symbolMapper.ConvertCurrency(balance.Name)));
+                cash.Add(new CashAmount(balance.Value, _symbolMapper.ConvertCurrency(balance.Key)));
             }
 
             return cash;
         }
 
+        /// <summary>
+        /// Place Kraken Order
+        /// </summary>
+        /// <param name="order"></param>
+        /// <returns></returns>
         public override bool PlaceOrder(Order order)
         {
             var token = GetWebsocketToken();
@@ -588,33 +592,31 @@ namespace QuantConnect.Brokerages.Kraken
                 }
 
                 var token = JToken.Parse(response.Content);
-                var ch = token["result"].Children().Children().First() as JArray;
-
-                var candlesList = JsonConvert.DeserializeObject<object[][]>(ch.ToString()).ToList();
+                var candlesList = token["result"][marketSymbol].ToObject<List<KrakenCandle>>();
                 
                 if (candlesList.Count > 0)
                 {
                     var lastValue = candlesList[^1];
                     if (Log.DebuggingEnabled)
                     {
-                        var windowStartTime = Time.UnixMillisecondTimeStampToDateTime((long)candlesList[0][0]);
-                        var windowEndTime = Time.UnixMillisecondTimeStampToDateTime((long)lastValue[0] + resolutionInMs);
+                        var windowStartTime = Time.UnixTimeStampToDateTime(candlesList[0].Time);
+                        var windowEndTime = Time.UnixTimeStampToDateTime(lastValue.Time + resolutionInMs);
                         Log.Debug($"KrakenRestApiClient.GetHistory(): Received [{marketSymbol}] data for time period from {windowStartTime.ToStringInvariant()} to {windowEndTime.ToStringInvariant()}..");
                     }
-                    start = (long)lastValue[0] + resolutionInMs;
+                    start = (long)lastValue.Time + resolutionInMs;
 
                     foreach (var kline in candlesList)
                     {
                         yield return new TradeBar()
                         {
-                            Time = Time.UnixTimeStampToDateTime((long)kline[0]),
+                            Time = Time.UnixTimeStampToDateTime(kline.Time),
                             Symbol = request.Symbol,
-                            Low = ((string)kline[3]).ConvertInvariant<decimal>(),
-                            High = ((string)kline[2]).ConvertInvariant<decimal>(),
-                            Open = ((string)kline[1]).ConvertInvariant<decimal>(),
-                            Close = ((string)kline[4]).ConvertInvariant<decimal>(),
-                            Volume = ((string)kline[6]).ConvertInvariant<decimal>(),
-                            Value = ((string)kline[4]).ConvertInvariant<decimal>(),
+                            Low = kline.Low,
+                            High = kline.High,
+                            Open = kline.Open,
+                            Close = kline.Close,
+                            Volume = kline.Volume,
+                            Value = kline.Close,
                             DataType = MarketDataType.TradeBar,
                             Period = period
                         };
@@ -635,7 +637,6 @@ namespace QuantConnect.Brokerages.Kraken
         /// HTTP 429 return code is used when breaking a request rate limit.
         /// </summary>
         /// <param name="request"></param>
-        /// <param name="isOrderRequest">for order requests applies other rate limit checks</param>
         /// <returns></returns>
         private IRestResponse ExecuteRestRequest(IRestRequest request)
         {
@@ -652,6 +653,34 @@ namespace QuantConnect.Brokerages.Kraken
             } while (++attempts < maxAttempts && (int)response.StatusCode == 429);
 
             return response;
+        }
+        
+        /// <summary>
+        /// Create sign to enter private rest info
+        /// </summary>
+        /// <param name="path"></param>
+        /// <param name="nonce"></param>
+        /// <param name="body"></param>
+        /// <returns></returns>
+        private Dictionary<string, string> CreateSignature(string path, long nonce, string body = "")
+        {
+            Dictionary<string, string> header = new();
+            var concat = nonce + body;
+            var hash256 = new SHA256Managed();
+            var hash = hash256.ComputeHash(Encoding.UTF8.GetBytes(concat));
+            var secretDecoded = Convert.FromBase64String(ApiSecret);
+            var hmacsha512 = new HMACSHA512(secretDecoded);
+
+            var urlBytes = Encoding.UTF8.GetBytes(path);
+            var buffer = new byte[urlBytes.Length + hash.Length];
+            Buffer.BlockCopy(urlBytes, 0, buffer, 0, urlBytes.Length);
+            Buffer.BlockCopy(hash, 0, buffer, urlBytes.Length, hash.Length);
+            var hash2 = hmacsha512.ComputeHash(buffer);
+            var finalKey = Convert.ToBase64String(hash2);
+
+            header.Add("API-Key", ApiKey);
+            header.Add("API-Sign", finalKey);
+            return header;
         }
 
     }

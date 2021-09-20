@@ -4,6 +4,7 @@ using System.Linq;
 using System.Net;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using QuantConnect.Brokerages.Kraken.Models;
 using QuantConnect.Data;
 using QuantConnect.Data.Market;
 using QuantConnect.Logging;
@@ -128,6 +129,10 @@ namespace QuantConnect.Brokerages.Kraken
             return true;
         }
 
+        /// <summary>
+        /// Parse public ws message
+        /// </summary>
+        /// <param name="webSocketMessage">message</param>
         private void OnDataMessage(WebSocketMessage webSocketMessage)
         {
             var e = (WebSocketClientWrapper.TextMessage) webSocketMessage.Data;
@@ -150,24 +155,25 @@ namespace QuantConnect.Brokerages.Kraken
                 switch (token[2].ToString())
                 {
                     case "spread":
-                        JArray data = token[1] as JArray;
-                        EmitQuoteTick(_symbolMapper.GetSymbolFromWebsocket(token[3].ToString()), Time.UnixTimeStampToDateTime(data[2].ConvertInvariant<double>()),
-                            data[0].ConvertInvariant<decimal>(), data[3].ConvertInvariant<decimal>(),
-                            data[1].ConvertInvariant<decimal>(), data[4].ConvertInvariant<decimal>());
+                        EmitQuoteTick(_symbolMapper.GetSymbolFromWebsocket(token[3].ToString()), token[1].ToObject<KrakenSpread>());
                         break;
                     case "trade":
-                        ParseTradeMessage(token[1] as JArray, token[3].ToString());
+                        ParseTradeMessage(_symbolMapper.GetSymbolFromWebsocket(token[3].ToString()), token[1].ToObject<List<KrakenTrade>>());
                         break;
                 }
             }
         }
 
-        private void ParseTradeMessage(JArray trades, string symbol)
+        /// <summary>
+        /// Parse public ws trade message
+        /// </summary>
+        /// <param name="symbol">Symbol</param>
+        /// <param name="trades">list of trades</param>
+        private void ParseTradeMessage(Symbol symbol, List<KrakenTrade> trades)
         {
-            foreach (JArray data in trades)
+            foreach (var data in trades)
             {
-                EmitTradeTick(_symbolMapper.GetSymbolFromWebsocket(symbol), Time.UnixTimeStampToDateTime(data[2].ConvertInvariant<double>()),
-                    data[0].ConvertInvariant<decimal>(), data[1].ConvertInvariant<decimal>());
+                EmitTradeTick(symbol, Time.UnixTimeStampToDateTime(data.Time), data.Price, data.Volume);
             }
         }
 
@@ -195,20 +201,20 @@ namespace QuantConnect.Brokerages.Kraken
             }
         }
 
-        private void EmitQuoteTick(Symbol symbol, DateTime time, decimal bidPrice, decimal bidSize, decimal askPrice, decimal askSize)
+        private void EmitQuoteTick(Symbol symbol, KrakenSpread spread)
         {
             lock (TickLocker)
             {
                 EmitTick(new Tick
                 {
-                    AskPrice = askPrice,
-                    BidPrice = bidPrice,
-                    Value = (askPrice + bidPrice) / 2m,
-                    Time = time,
+                    AskPrice = spread.Ask,
+                    BidPrice = spread.Bid,
+                    Value = (spread.Ask + spread.Bid) / 2m,
+                    Time = Time.UnixTimeStampToDateTime(spread.Timestamp),
                     Symbol = symbol,
                     TickType = TickType.Quote,
-                    AskSize = Math.Abs(askSize),
-                    BidSize = Math.Abs(bidSize),
+                    AskSize = Math.Abs(spread.AskVolume),
+                    BidSize = Math.Abs(spread.BidVolume),
                     Exchange = "kraken"
                 });
             }
@@ -265,6 +271,9 @@ namespace QuantConnect.Brokerages.Kraken
         {
         }
 
+        /// <summary>
+        /// Subscribe to auth channel
+        /// </summary>
         private void SubscribeAuth()
         {
             if (WebSocket.IsOpen)
