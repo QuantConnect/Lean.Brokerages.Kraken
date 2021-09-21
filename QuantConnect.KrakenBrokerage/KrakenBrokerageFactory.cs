@@ -49,7 +49,7 @@ namespace QuantConnect.Brokerages.Kraken
         {
             { "kraken-api-secret", Config.Get("kraken-api-secret")},
             { "kraken-api-key", Config.Get("kraken-api-key")},
-            { "kraken-spot-verification-tier", Config.Get("kraken-spot-verification-tier")},
+            { "kraken-spot-verification-tier", Config.Get("kraken-verification-tier")},
 
             // load holdings if available
             { "live-holdings", Config.Get("live-holdings")},
@@ -69,7 +69,7 @@ namespace QuantConnect.Brokerages.Kraken
         /// <returns></returns>
         public override IBrokerage CreateBrokerage(LiveNodePacket job, IAlgorithm algorithm)
         {
-            var required = new[] { "kraken-api-secret", "kraken-api-key", "kraken-spot-verification-tier" };
+            var required = new[] { "kraken-api-secret", "kraken-api-key", "kraken-verification-tier" };
 
             foreach (var item in required)
             {
@@ -82,7 +82,7 @@ namespace QuantConnect.Brokerages.Kraken
             var brokerage = new KrakenBrokerage(
                 job.BrokerageData["kraken-api-key"],
                 job.BrokerageData["kraken-api-secret"],
-                job.BrokerageData["kraken-spot-verification-tier"],
+                job.BrokerageData["kraken-verification-tier"],
                 algorithm,
                 Composer.Instance.GetExportedValueByTypeName<IDataAggregator>(Config.Get("data-aggregator", "QuantConnect.Lean.Engine.DataFeeds.AggregationManager")),
                 job);

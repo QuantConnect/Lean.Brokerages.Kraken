@@ -17,8 +17,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
-using System.Security.Cryptography;
-using System.Text;
 using System.Timers;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -29,8 +27,6 @@ using QuantConnect.Data.Market;
 using QuantConnect.Interfaces;
 using QuantConnect.Logging;
 using QuantConnect.Orders;
-using QuantConnect.Orders.Fees;
-using QuantConnect.Orders.TimeInForces;
 using QuantConnect.Packets;
 using QuantConnect.Securities;
 using QuantConnect.Util;
@@ -653,34 +649,6 @@ namespace QuantConnect.Brokerages.Kraken
             } while (++attempts < maxAttempts && (int)response.StatusCode == 429);
 
             return response;
-        }
-        
-        /// <summary>
-        /// Create sign to enter private rest info
-        /// </summary>
-        /// <param name="path"></param>
-        /// <param name="nonce"></param>
-        /// <param name="body"></param>
-        /// <returns></returns>
-        private Dictionary<string, string> CreateSignature(string path, long nonce, string body = "")
-        {
-            Dictionary<string, string> header = new();
-            var concat = nonce + body;
-            var hash256 = new SHA256Managed();
-            var hash = hash256.ComputeHash(Encoding.UTF8.GetBytes(concat));
-            var secretDecoded = Convert.FromBase64String(ApiSecret);
-            var hmacsha512 = new HMACSHA512(secretDecoded);
-
-            var urlBytes = Encoding.UTF8.GetBytes(path);
-            var buffer = new byte[urlBytes.Length + hash.Length];
-            Buffer.BlockCopy(urlBytes, 0, buffer, 0, urlBytes.Length);
-            Buffer.BlockCopy(hash, 0, buffer, urlBytes.Length, hash.Length);
-            var hash2 = hmacsha512.ComputeHash(buffer);
-            var finalKey = Convert.ToBase64String(hash2);
-
-            header.Add("API-Key", ApiKey);
-            header.Add("API-Sign", finalKey);
-            return header;
         }
 
     }

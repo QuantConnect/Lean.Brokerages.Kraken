@@ -172,7 +172,7 @@ namespace QuantConnect.Brokerages.Kraken
                         if (!data.Value.ToString().Contains("descr"))
                         {
                             status = GetOrderStatus(orderData.Status);
-                            updTime = !string.IsNullOrEmpty(orderData.LastUpdated) ? Time.UnixTimeStampToDateTime(orderData.LastUpdated.ConvertInvariant<double>()) : DateTime.UtcNow;
+                            updTime = !string.IsNullOrEmpty(orderData.LastUpdated) ? Time.UnixTimeStampToDateTime(Convert.ToDouble(orderData.LastUpdated)) : DateTime.UtcNow;
 
                             direction = order.Direction;
                             fillPrice = orderData.Avg_Price;
