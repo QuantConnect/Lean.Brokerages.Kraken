@@ -15,11 +15,52 @@ namespace QuantConnect.Brokerages.Kraken
     public partial class KrakenBrokerage
     {
         /// <summary>
+        /// Get current tick of Symbol
+        /// </summary>
+        /// <param name="symbol">Kraken <see cref="Symbol"/></param>
+        /// <returns><see cref="Tick"/></returns>
+        /// <exception cref="Exception"></exception>
+        public Tick GetTick(Symbol symbol)
+        {
+            var marketSymbol = _symbolMapper.GetBrokerageSymbol(symbol);
+
+            var restRequest = CreateRequest($"/0/public/Ticker?pair={marketSymbol}");
+
+            var response = ExecuteRestRequest(restRequest);
+
+            if (response.StatusCode != HttpStatusCode.OK)
+            {
+                throw new Exception($"KrakenBrokerage.GetTick: request failed: [{(int) response.StatusCode}] {response.StatusDescription}, Content: {response.Content}, ErrorMessage: {response.ErrorMessage}");
+            }
+
+            var token = JToken.Parse(response.Content);
+
+            var element = token["result"].First as JProperty;
+
+            var ticker = element.Value.ToObject<KrakenTicker>();
+
+            var tick = new Tick
+            {
+                AskPrice = ticker.A[0],
+                BidPrice = ticker.B[0],
+                Value = ticker.C[0],
+                Time = DateTime.UtcNow,
+                Symbol = symbol,
+                TickType = TickType.Quote,
+                AskSize = ticker.A[2],
+                BidSize = ticker.B[2],
+                Exchange = "kraken",
+            };
+
+            return tick;
+        }
+        
+        /// <summary>
         /// Create sign to enter private rest info
         /// </summary>
-        /// <param name="path"></param>
-        /// <param name="nonce"></param>
-        /// <param name="body"></param>
+        /// <param name="path">api path</param>
+        /// <param name="nonce">Unix timestamp</param>
+        /// <param name="body">UrlEncoded body</param>
         /// <returns></returns>
         private Dictionary<string, string> CreateSignature(string path, long nonce, string body = "")
         {
@@ -40,42 +81,6 @@ namespace QuantConnect.Brokerages.Kraken
             header.Add("API-Key", ApiKey);
             header.Add("API-Sign", finalKey);
             return header;
-        }
-        
-        private int GetRateLimitWeightCancelOrder(DateTime time)
-        {
-            var timeNow = DateTime.Now;
-            if (timeNow - time < TimeSpan.FromSeconds(5))
-            {
-                return 8;
-            }
-
-            if (timeNow - time < TimeSpan.FromSeconds(10))
-            {
-                return 6;
-            }
-
-            if (timeNow - time < TimeSpan.FromSeconds(15))
-            {
-                return 5;
-            }
-
-            if (timeNow - time < TimeSpan.FromSeconds(45))
-            {
-                return 4;
-            }
-
-            if (timeNow - time < TimeSpan.FromSeconds(90))
-            {
-                return 2;
-            }
-
-            if (timeNow - time < TimeSpan.FromSeconds(900))
-            {
-                return 1;
-            }
-
-            return 0;
         }
 
         private OrderStatus GetOrderStatus(string status) => status switch
@@ -120,40 +125,5 @@ namespace QuantConnect.Brokerages.Kraken
             Resolution.Daily => "1440",
             _ => "1"
         };
-
-        public Tick GetTick(Symbol symbol)
-        {
-            var marketSymbol = _symbolMapper.GetBrokerageSymbol(symbol);
-
-            var restRequest = CreateRequest($"/0/public/Ticker?pair={marketSymbol}");
-
-            var response = ExecuteRestRequest(restRequest);
-
-            if (response.StatusCode != HttpStatusCode.OK)
-            {
-                throw new Exception($"KrakenBrokerage.GetTick: request failed: [{(int) response.StatusCode}] {response.StatusDescription}, Content: {response.Content}, ErrorMessage: {response.ErrorMessage}");
-            }
-
-            var token = JToken.Parse(response.Content);
-
-            var element = token["result"].First as JProperty;
-
-            var ticker = element.Value.ToObject<KrakenTicker>();
-
-            var tick = new Tick
-            {
-                AskPrice = ticker.A[0],
-                BidPrice = ticker.B[0],
-                Value = ticker.C[0],
-                Time = DateTime.UtcNow,
-                Symbol = symbol,
-                TickType = TickType.Quote,
-                AskSize = ticker.A[2],
-                BidSize = ticker.B[2],
-                Exchange = "kraken",
-            };
-
-            return tick;
-        }
     }
 }

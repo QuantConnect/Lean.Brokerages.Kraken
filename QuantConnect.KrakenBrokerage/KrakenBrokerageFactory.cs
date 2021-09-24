@@ -37,6 +37,9 @@ namespace QuantConnect.Brokerages.Kraken
         {
         }
 
+        /// <summary>
+        /// Dispose 
+        /// </summary>
         public override void Dispose()
         {
             
@@ -62,11 +65,11 @@ namespace QuantConnect.Brokerages.Kraken
         public override IBrokerageModel GetBrokerageModel(IOrderProvider orderProvider) => new KrakenBrokerageModel();
 
         /// <summary>
-        /// Create the Brokerage instance
+        /// Create the Kraken Brokerage instance
         /// </summary>
-        /// <param name="job"></param>
-        /// <param name="algorithm"></param>
-        /// <returns></returns>
+        /// <param name="algorithm"><see cref="IAlgorithm"/> instance</param>
+        /// <param name="job">Lean <see cref="LiveNodePacket"/></param>
+        /// <returns>Instance of <see cref="KrakenBrokerage"/></returns>
         public override IBrokerage CreateBrokerage(LiveNodePacket job, IAlgorithm algorithm)
         {
             var required = new[] { "kraken-api-secret", "kraken-api-key", "kraken-verification-tier" };

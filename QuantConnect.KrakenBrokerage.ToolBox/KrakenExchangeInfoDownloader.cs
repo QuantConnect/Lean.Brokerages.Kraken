@@ -25,12 +25,10 @@ namespace QuantConnect.ToolBox.KrakenDownloader
         public string Market => QuantConnect.Market.Kraken;
         public IEnumerable<string> Get()
         {
-            HttpClient client = new HttpClient();
-            client.BaseAddress = new Uri("https://api.kraken.com");
-            
-            var req = new HttpRequestMessage(HttpMethod.Get, "/0/public/AssetPairs");
-            var resp = client.SendAsync(req).Result;
-            var t = JToken.Parse(resp.Content.ReadAsStringAsync().Result);
+            const string url = "https://api.kraken.com/0/public/AssetPairs";
+            var json = url.DownloadData();
+           
+            var t = JToken.Parse(json);
             foreach (JProperty instr in t["result"].Children())
             {
                 if(instr.Name.EndsWith(".d")) continue;

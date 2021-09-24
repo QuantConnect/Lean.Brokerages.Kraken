@@ -1,6 +1,6 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using Newtonsoft.Json.Linq;
 using QuantConnect.Brokerages.Kraken.Models;
 using QuantConnect.Logging;
@@ -218,12 +218,11 @@ namespace QuantConnect.Brokerages.Kraken
         {
             symbol = _symbolMapper.GetWebsocketSymbol(order.Symbol);
 
-            var q = order.AbsoluteQuantity;
             var parameters = new JsonObject
             {
                 {"event", "addOrder"},
                 {"pair", symbol},
-                {"volume", q.ToStringInvariant()},
+                {"volume", order.AbsoluteQuantity.ToStringInvariant()},
                 {"type", order.Direction == OrderDirection.Buy ? "buy" : "sell"},
                 {"token", token},
             };
@@ -269,30 +268,30 @@ namespace QuantConnect.Brokerages.Kraken
 
             if (order.Properties is KrakenOrderProperties krakenOrderProperties)
             {
-                StringBuilder sb = new StringBuilder();
+                var propertiesList = new List<string>();
                 if (krakenOrderProperties.PostOnly)
                 {
-                    sb.Append("post");
+                    propertiesList.Add("post");
                 }
 
                 if (krakenOrderProperties.FeeInBase)
                 {
-                    sb.Append(",fcib");
+                    propertiesList.Add("fcib");
                 }
 
                 if (krakenOrderProperties.FeeInQuote)
                 {
-                    sb.Append(",fciq");
+                    propertiesList.Add("fciq");
                 }
 
                 if (krakenOrderProperties.NoMarketPriceProtection)
                 {
-                    sb.Append(",nompp");
+                    propertiesList.Add("nompp");
                 }
 
-                if (sb.Length != 0)
+                if (propertiesList.Count != 0)
                 {
-                    parameters.Add("oflags", sb.ToString());
+                    parameters.Add("oflags", string.Join(",", propertiesList));
                 }
 
                 if (krakenOrderProperties.ConditionalOrder != null)
@@ -301,7 +300,7 @@ namespace QuantConnect.Brokerages.Kraken
                     {
                         throw new BrokerageException($"KrakenBrokerage.PlaceOrder: Conditional order type can't be Market. Specify other order type");
                     }
-                    else if (krakenOrderProperties.ConditionalOrder is LimitOrder limitOrd)
+                    if (krakenOrderProperties.ConditionalOrder is LimitOrder limitOrd)
                     {
                         parameters.Add("close[ordertype]", "limit");
                         parameters.Add("close[price]", limitOrd.LimitPrice.ToStringInvariant());

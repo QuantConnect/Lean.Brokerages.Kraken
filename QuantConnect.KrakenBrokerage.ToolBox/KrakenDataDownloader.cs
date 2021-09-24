@@ -154,7 +154,7 @@ namespace QuantConnect.ToolBox.KrakenDownloader
                         Symbol = symbol,
                         TickType = TickType.Trade,
                         Quantity = volume,
-                        Exchange = "kraken"
+                        Exchange = Market.Kraken
                     };
                 }
 
@@ -202,7 +202,7 @@ namespace QuantConnect.ToolBox.KrakenDownloader
                             Symbol = symbol,
                             TickType = TickType.Trade,
                             Quantity = volume,
-                            Exchange = "kraken"
+                            Exchange = Market.Kraken
                         };
                     }
 

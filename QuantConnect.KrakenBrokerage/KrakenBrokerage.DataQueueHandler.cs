@@ -21,7 +21,6 @@ namespace QuantConnect.Brokerages.Kraken
         /// </summary>
         public readonly object TickLocker = new object();
         
-        
         #region Aggregator Update
 
         /// <summary>
@@ -132,7 +131,7 @@ namespace QuantConnect.Brokerages.Kraken
         /// <summary>
         /// Parse public ws message
         /// </summary>
-        /// <param name="webSocketMessage">message</param>
+        /// <param name="webSocketMessage"> message</param>
         private void OnDataMessage(WebSocketMessage webSocketMessage)
         {
             var e = (WebSocketClientWrapper.TextMessage) webSocketMessage.Data;
@@ -181,18 +180,15 @@ namespace QuantConnect.Brokerages.Kraken
         {
             try
             {
-                lock (TickLocker)
+                EmitTick(new Tick
                 {
-                    EmitTick(new Tick
-                    {
-                        Value = price,
-                        Time = time,
-                        Symbol = symbol,
-                        TickType = TickType.Trade,
-                        Quantity = Math.Abs(amount),
-                        Exchange = "kraken"
-                    });
-                }
+                    Value = price,
+                    Time = time,
+                    Symbol = symbol,
+                    TickType = TickType.Trade,
+                    Quantity = Math.Abs(amount),
+                    Exchange =  Market.Kraken
+                });
             }
             catch (Exception e)
             {
@@ -203,21 +199,20 @@ namespace QuantConnect.Brokerages.Kraken
 
         private void EmitQuoteTick(Symbol symbol, KrakenSpread spread)
         {
-            lock (TickLocker)
+            var tick = new Tick
             {
-                EmitTick(new Tick
-                {
-                    AskPrice = spread.Ask,
-                    BidPrice = spread.Bid,
-                    Value = (spread.Ask + spread.Bid) / 2m,
-                    Time = Time.UnixTimeStampToDateTime(spread.Timestamp),
-                    Symbol = symbol,
-                    TickType = TickType.Quote,
-                    AskSize = Math.Abs(spread.AskVolume),
-                    BidSize = Math.Abs(spread.BidVolume),
-                    Exchange = "kraken"
-                });
-            }
+                AskPrice = spread.Ask,
+                BidPrice = spread.Bid,
+                Time = Time.UnixTimeStampToDateTime(spread.Timestamp),
+                Symbol = symbol,
+                TickType = TickType.Quote,
+                AskSize = Math.Abs(spread.AskVolume),
+                BidSize = Math.Abs(spread.BidVolume),
+                Exchange = Market.Kraken
+            };
+            
+            tick.SetValue();
+            EmitTick(tick);
         }
 
         /// <summary>
@@ -226,7 +221,10 @@ namespace QuantConnect.Brokerages.Kraken
         /// <param name="tick"></param>
         public void EmitTick(Tick tick)
         {
-            _aggregator.Update(tick);
+            lock (TickLocker)
+            {
+                _aggregator.Update(tick);
+            }
         }
 
         #endregion
@@ -245,7 +243,7 @@ namespace QuantConnect.Brokerages.Kraken
             {
                 {"nonce", nonce.ToString()}
             };
-            string query = "/0/private/GetWebSocketsToken";
+            var query = "/0/private/GetWebSocketsToken";
 
             var headers = CreateSignature(query, nonce, BuildUrlEncode(param));
 

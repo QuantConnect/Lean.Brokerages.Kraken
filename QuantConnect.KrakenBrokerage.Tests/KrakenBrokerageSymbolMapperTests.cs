@@ -17,7 +17,7 @@ using System;
 using NUnit.Framework;
 using QuantConnect.Brokerages.Kraken;
 
-namespace QuantConnect.TemplateBrokerage.Tests
+namespace QuantConnect.Tests.Brokerages.Kraken
 {
 
     public class KrakenBrokerageSymbolMapperTests
@@ -81,7 +81,7 @@ namespace QuantConnect.TemplateBrokerage.Tests
             {
                 var symbol = _symbolMapper.GetLeanSymbol(marketTicker);
                 
-                Assert.True(symbol == leanSymbol, "Converted Lean Symbol not the same with passed symbol");
+                Assert.AreEqual(symbol, leanSymbol, "Converted Lean Symbol not the same with passed symbol");
             };
             
             if (shouldThrow)
@@ -102,7 +102,7 @@ namespace QuantConnect.TemplateBrokerage.Tests
             {
                 var symbol = _symbolMapper.GetBrokerageSymbol(leanSymbol);
                 
-                Assert.True(symbol == marketTicker, "Converted Brokerage Symbol not the same with passed Brokerage symbol");
+                Assert.AreEqual(symbol, marketTicker, "Converted Brokerage Symbol not the same with passed Brokerage symbol");
             };
             
             if (shouldThrow)
@@ -123,7 +123,7 @@ namespace QuantConnect.TemplateBrokerage.Tests
             {
                 var symbol = _symbolMapper.GetWebsocketSymbol(marketTicker);
                 
-                Assert.True(symbol == wsTicker, "Converted Websocket Symbol not the same with passed Websocket symbol");
+                Assert.AreEqual(symbol, wsTicker, "Converted Websocket Symbol not the same with passed Websocket symbol");
             };
             
             if (shouldThrow)

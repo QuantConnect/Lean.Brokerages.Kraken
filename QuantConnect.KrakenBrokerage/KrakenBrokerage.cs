@@ -36,7 +36,7 @@ using HistoryRequest = QuantConnect.Data.HistoryRequest;
 namespace QuantConnect.Brokerages.Kraken
 {
     /// <summary>
-    /// Binance brokerage implementation
+    /// Kraken brokerage implementation
     /// </summary>
     [BrokerageFactory(typeof(KrakenBrokerageFactory))]
     public partial class KrakenBrokerage : BaseWebsocketsBrokerage, IDataQueueHandler
@@ -46,34 +46,12 @@ namespace QuantConnect.Brokerages.Kraken
         private readonly IDataAggregator _aggregator;
         private readonly KrakenSymbolMapper _symbolMapper = new KrakenSymbolMapper();
         private LiveNodePacket _job;
+        private readonly KrakenBrokerageRateLimits _rateLimiter;
 
         private const string _apiUrl = "https://api.kraken.com";
         private const string _wsUrl = "wss://ws.kraken.com";
         private const string _wsAuthUrl = "wss://ws-auth.kraken.com";
-        
-        private readonly Dictionary<KrakenRateLimitType, decimal> _rateLimitsDictionary = new ()
-        {
-            {KrakenRateLimitType.Common, 15},
-            {KrakenRateLimitType.Orders, 60},
-            {KrakenRateLimitType.Cancel, 60}
-        };
 
-        private readonly Dictionary<KrakenRateLimitType, decimal> _rateLimitsDecayDictionary = new ()
-        {
-            {KrakenRateLimitType.Common, 0.33m},
-            {KrakenRateLimitType.Cancel, 1m},
-        };
-
-        public decimal RateLimitCounter { get; set; }
-
-        private readonly Timer _1sRateLimitTimer = new Timer(1000);
-        
-        private Dictionary<string, int> RateLimitsOrderPerSymbolDictionary { get; set; }
-        private Dictionary<string, decimal> RateLimitsCancelPerSymbolDictionary { get; set; }
-        
-        // specify very big number of occurrences, because we will estimate it by ourselves. Will be used only for cooldown
-        private readonly RateGate _restRateLimiter = new RateGate(150, TimeSpan.FromSeconds(45)); 
-        
         private readonly RateGate _webSocketRateLimiter = new RateGate(1, TimeSpan.FromSeconds(5));
         
         /// <summary>
@@ -82,26 +60,14 @@ namespace QuantConnect.Brokerages.Kraken
         private Dictionary<int, Order> PlacedOrdersDictionary { get; set; }
 
         /// <summary>
-        /// The api secret spot
-        /// </summary>
-        protected string ApiSecret;
-
-        /// <summary>
-        /// The api key spot
-        /// </summary>
-        /// 
-        protected string ApiKey;
-
-
-        /// <summary>
         /// Constructor for brokerage
         /// </summary>
-        /// <param name="apiKey"></param>
-        /// <param name="apiSecret"></param>
-        /// <param name="verificationTier"></param>
-        /// <param name="algorithm"></param>
-        /// <param name="aggregator"></param>
-        /// <param name="job"></param>
+        /// <param name="apiKey">Api key</param>
+        /// <param name="apiSecret">Api secret</param>
+        /// <param name="verificationTier">Account verification tier</param>
+        /// <param name="algorithm"><see cref="IAlgorithm"/> instance</param>
+        /// <param name="aggregator"><see cref="IDataAggregator"/> instance</param>
+        /// <param name="job">Lean <see cref="LiveNodePacket"/></param>
         public KrakenBrokerage(string apiKey, string apiSecret,  string verificationTier, IAlgorithm algorithm, IDataAggregator aggregator, LiveNodePacket job)
             : base(_wsAuthUrl, new KrakenWebSocketWrapper(null), new RestClient(_apiUrl), apiKey, apiSecret, "Kraken")
         {
@@ -109,34 +75,11 @@ namespace QuantConnect.Brokerages.Kraken
             _job = job;
             _aggregator = aggregator;
             _securityProvider = algorithm.Portfolio;
-            
-            ApiKey = apiKey;
-            ApiSecret = apiSecret;
 
-            RateLimitsOrderPerSymbolDictionary = new Dictionary<string, int>();
-            RateLimitsCancelPerSymbolDictionary = new Dictionary<string, decimal>();
+            _rateLimiter = new KrakenBrokerageRateLimits(verificationTier);
+            
             PlacedOrdersDictionary = new Dictionary<int, Order>();
 
-            switch (verificationTier.ToLower())
-            {
-                case "intermediate":
-                    _rateLimitsDictionary[KrakenRateLimitType.Common] = 20;
-                    _rateLimitsDictionary[KrakenRateLimitType.Orders] = 80;
-                    _rateLimitsDictionary[KrakenRateLimitType.Cancel] = 125;
-                    _rateLimitsDecayDictionary[KrakenRateLimitType.Common] = 0.5m;
-                    _rateLimitsDecayDictionary[KrakenRateLimitType.Cancel] = 2.34m;
-                    break;
-                case "pro":
-                    _rateLimitsDictionary[KrakenRateLimitType.Common] = 20;
-                    _rateLimitsDictionary[KrakenRateLimitType.Orders] = 225;
-                    _rateLimitsDictionary[KrakenRateLimitType.Cancel] = 180;
-                    _rateLimitsDecayDictionary[KrakenRateLimitType.Common] = 1;
-                    _rateLimitsDecayDictionary[KrakenRateLimitType.Cancel] = 3.75m;
-                    break;
-                default:
-                    break;
-            }
-            
             SubscriptionManager = new BrokerageMultiWebSocketSubscriptionManager(
                 _wsUrl,
                 100,
@@ -149,10 +92,6 @@ namespace QuantConnect.Brokerages.Kraken
                 TimeSpan.Zero, 
                 _webSocketRateLimiter);
             
-            
-            _1sRateLimitTimer.Elapsed += DecaySpotRateLimits;
-            _1sRateLimitTimer.Start();
-
             WebSocket.Open += (sender, args) => { SubscribeAuth(); };
 
         }
@@ -160,9 +99,9 @@ namespace QuantConnect.Brokerages.Kraken
         /// <summary>
         /// Constructor for brokerage without configs
         /// </summary>
-        /// <param name="algorithm"></param>
-        /// <param name="aggregator"></param>
-        /// <param name="job"></param>
+        /// <param name="algorithm"><see cref="IAlgorithm"/> instance</param>
+        /// <param name="aggregator"><see cref="IDataAggregator"/> instance</param>
+        /// <param name="job">Lean <see cref="LiveNodePacket"/></param>
         public KrakenBrokerage(IAlgorithm algorithm, IDataAggregator aggregator, LiveNodePacket job)
             :
             this(Config.Get("kraken-api-key"),
@@ -171,94 +110,15 @@ namespace QuantConnect.Brokerages.Kraken
                 algorithm, aggregator, job)
         {
         }
-
-        #region RateLimits
-      
-        private void DecaySpotRateLimits(object o, ElapsedEventArgs agrs)
-        {
-            if (RateLimitCounter <= _rateLimitsDecayDictionary[KrakenRateLimitType.Common])
-            {
-                RateLimitCounter = 0;
-            }
-            else
-            {
-                RateLimitCounter -= _rateLimitsDecayDictionary[KrakenRateLimitType.Common];
-            }
-
-            if (RateLimitsCancelPerSymbolDictionary.Count > 0)
-            {
-                foreach (var key in RateLimitsCancelPerSymbolDictionary.Keys)
-                {
-                    if (RateLimitsCancelPerSymbolDictionary[key] <= _rateLimitsDecayDictionary[KrakenRateLimitType.Cancel])
-                    {
-                        RateLimitsCancelPerSymbolDictionary[key] = 0;
-                    }
-                    else
-                    {
-                        RateLimitsCancelPerSymbolDictionary[key] -= _rateLimitsDecayDictionary[KrakenRateLimitType.Cancel];
-                    }
-                }
-            }
-        }
         
-
-        private void RateLimitCheck()
-        {
-            if (RateLimitCounter + 1 > _rateLimitsDictionary[KrakenRateLimitType.Common])
-            {
-                Log.Trace("Brokerage.OnMessage(): " + new BrokerageMessageEvent(BrokerageMessageType.Warning, "SpotRateLimit",
-                    "The API request has been rate limited. To avoid this message, please reduce the frequency of API calls."));
-                _restRateLimiter.WaitToProceed();
-            }
-
-            RateLimitCounter++;
-        }
-
-        private void OrderRateLimitCheck(string symbol)
-        {
-            if (RateLimitsOrderPerSymbolDictionary.TryGetValue(symbol, out var currentOrdersCount))
-            {
-                if (currentOrdersCount >= _rateLimitsDictionary[KrakenRateLimitType.Orders])
-                {
-                    Log.Error("Brokerage.OnMessage(): " + new BrokerageMessageEvent(BrokerageMessageType.Error, "RateLimit",
-                        $"Placing new orders of {symbol} symbol is not allowed. Your order limit: {_rateLimitsDictionary[KrakenRateLimitType.Orders]}, opened orders now: {currentOrdersCount}." +
-                        $"Cancel orders to have ability to place new."));
-                    throw new BrokerageException("Order placing limit is exceeded. Cancel open orders and then place new ones.");
-                }
-
-                RateLimitsOrderPerSymbolDictionary[symbol]++;
-            }
-        }
-        
-        private void CancelOrderRateLimitCheck(string symbol, DateTime time)
-        {
-            var weight = GetRateLimitWeightCancelOrder(time);
-            if (RateLimitsCancelPerSymbolDictionary.TryGetValue(symbol, out var currentCancelOrderRate))
-            {
-                if (currentCancelOrderRate + weight >= _rateLimitsDictionary[KrakenRateLimitType.Orders])
-                {
-                    Log.Trace("Brokerage.OnMessage(): " + new BrokerageMessageEvent(BrokerageMessageType.Warning, "CancelRateLimit",
-                        "The cancel order API request has been rate limited. To avoid this message, please reduce the frequency of cancel order API calls."));
-                    _restRateLimiter.WaitToProceed();
-                }
-
-                RateLimitsCancelPerSymbolDictionary[symbol] += weight;
-                return;
-            }
-
-            RateLimitsCancelPerSymbolDictionary[symbol] = weight;
-        }
-
-        
-        #endregion
         
         public override bool IsConnected => WebSocket.IsOpen;
 
         /// <summary>
         /// Gets all Kraken orders not yet closed
         /// </summary>
-        /// <returns></returns>
-        /// <exception cref="Exception"></exception>
+        /// <returns>list of <see cref="Order"/></returns>
+        /// <exception cref="Exception">Kraken api exception</exception>
         public override List<Order> GetOpenOrders()
         {
             var nonce = Time.DateTimeToUnixTimeStampMilliseconds(DateTime.UtcNow).ConvertInvariant<long>();
@@ -379,8 +239,8 @@ namespace QuantConnect.Brokerages.Kraken
         /// <summary>
         /// Get Kraken Holdings
         /// </summary>
-        /// <returns></returns>
-        /// <exception cref="Exception"></exception>
+        /// <returns>list of <see cref="Holding"/></returns>
+        /// <exception cref="Exception">Kraken api exception</exception>
         public override List<Holding> GetAccountHoldings()
         {
             var nonce = Time.DateTimeToUnixTimeStampMilliseconds(DateTime.UtcNow).ConvertInvariant<long>();
@@ -389,7 +249,7 @@ namespace QuantConnect.Brokerages.Kraken
                 {"nonce" , nonce.ToString()},
                 {"docalcs", true}
             };
-            string query = "/0/private/OpenPositions";
+            var query = "/0/private/OpenPositions";
             
             var headers = CreateSignature(query, nonce, BuildUrlEncode(param));
             
@@ -435,8 +295,8 @@ namespace QuantConnect.Brokerages.Kraken
         /// <summary>
         /// Get Kraken Balances
         /// </summary>
-        /// <returns></returns>
-        /// <exception cref="Exception"></exception>
+        /// <returns>list of <see cref="CashAmount"/></returns>
+        /// <exception cref="Exception">Kraken api exception</exception>
         public override List<CashAmount> GetCashBalance()
         {
             var nonce = Time.DateTimeToUnixTimeStampMilliseconds(DateTime.UtcNow).ConvertInvariant<long>();
@@ -474,8 +334,8 @@ namespace QuantConnect.Brokerages.Kraken
         /// <summary>
         /// Place Kraken Order
         /// </summary>
-        /// <param name="order"></param>
-        /// <returns></returns>
+        /// <param name="order"><see cref="Order"/> to place</param>
+        /// <returns>Order placed or not</returns>
         public override bool PlaceOrder(Order order)
         {
             var token = GetWebsocketToken();
@@ -484,7 +344,7 @@ namespace QuantConnect.Brokerages.Kraken
 
             var json = JsonConvert.SerializeObject(parameters);
 
-            OrderRateLimitCheck(symbol);
+            _rateLimiter.OrderRateLimitCheck(symbol);
             
             WebSocket.Send(json);
 
@@ -494,8 +354,8 @@ namespace QuantConnect.Brokerages.Kraken
         /// <summary>
         /// This operation is not supported
         /// </summary>
-        /// <param name="order"></param>
-        /// <returns></returns>
+        /// <param name="order"><see cref="Order"/> to update</param>
+        /// <returns>Order updated or not</returns>
         public override bool UpdateOrder(Order order)
         {
             throw new NotSupportedException("KrakenBrokerage.UpdateOrder: Order update not supported. Please cancel and re-create.");
@@ -504,7 +364,7 @@ namespace QuantConnect.Brokerages.Kraken
         /// <summary>
         /// Cancels the order with the specified ID
         /// </summary>
-        /// <param name="order">The order to cancel</param>
+        /// <param name="order"><see cref="Order"/> to cancel</param>
         /// <returns>True if the request was submitted for cancellation, false otherwise</returns>
         public override bool CancelOrder(Order order)
         {
@@ -524,7 +384,7 @@ namespace QuantConnect.Brokerages.Kraken
                 txid = order.BrokerId
             });
             
-            CancelOrderRateLimitCheck(_symbolMapper.GetBrokerageSymbol(order.Symbol), order.CreatedTime);
+            _rateLimiter.CancelOrderRateLimitCheck(_symbolMapper.GetBrokerageSymbol(order.Symbol), order.CreatedTime);
             WebSocket.Send(json);
 
             return true;
@@ -569,7 +429,7 @@ namespace QuantConnect.Brokerages.Kraken
             
             var marketSymbol = _symbolMapper.GetBrokerageSymbol(request.Symbol);
             var resolution = ConvertResolution(request.Resolution);
-            string url = _apiUrl + $"/0/public/OHLC?pair={marketSymbol}&interval={resolution}";
+            var url = _apiUrl + $"/0/public/OHLC?pair={marketSymbol}&interval={resolution}";
             var start = (long) Time.DateTimeToUnixTimeStamp(request.StartTimeUtc);
             var end = (long) Time.DateTimeToUnixTimeStamp(request.EndTimeUtc);
             var resolutionInMs = (long)request.Resolution.ToTimeSpan().TotalSeconds;
@@ -632,8 +492,8 @@ namespace QuantConnect.Brokerages.Kraken
         /// If an IP address exceeds a certain number of requests per minute
         /// HTTP 429 return code is used when breaking a request rate limit.
         /// </summary>
-        /// <param name="request"></param>
-        /// <returns></returns>
+        /// <param name="request"><see cref="IRestRequest"/> request</param>
+        /// <returns><see cref="IRestResponse"/> response</returns>
         private IRestResponse ExecuteRestRequest(IRestRequest request)
         {
             const int maxAttempts = 10;
@@ -642,7 +502,7 @@ namespace QuantConnect.Brokerages.Kraken
 
             do
             {
-                RateLimitCheck();
+                _rateLimiter.RateLimitCheck();
                 
                 response = RestClient.Execute(request);
                 // 429 status code: Too Many Requests

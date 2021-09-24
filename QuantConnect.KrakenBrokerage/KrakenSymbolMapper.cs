@@ -29,6 +29,8 @@ namespace QuantConnect.Brokerages.Kraken
         private readonly Dictionary<Symbol, SymbolProperties> _symbolPropertiesMap;
         
         private readonly Dictionary<string, Symbol> _symbolMap;
+        private readonly Dictionary<string, Symbol> _openOrdersSymbolMap;
+        private readonly Dictionary<string, Symbol> _wsSymbolMap;
 
         private Dictionary<string, string> _currencyMap => new Dictionary<string, string>
         {
@@ -62,13 +64,17 @@ namespace QuantConnect.Brokerages.Kraken
                     .ToDictionary(
                         x => x.Value.MarketTicker,
                         x => x.Key);
+
+            _openOrdersSymbolMap = new Dictionary<string, Symbol>();
+            _wsSymbolMap = new Dictionary<string, Symbol>();
         }
+        
         /// <summary>
         /// Get Kraken Market ticker for passed <see cref="Symbol"/>
         /// </summary>
-        /// <param name="symbol"></param>
-        /// <returns></returns>
-        /// <exception cref="ArgumentException"></exception>
+        /// <param name="symbol">Lean <see cref="Symbol"/></param>
+        /// <returns>Brokerage symbol</returns>
+        /// <exception cref="ArgumentException">Wrong Lean <see cref="Symbol"/></exception>
         public string GetBrokerageSymbol(Symbol symbol)
         {
             if (symbol.ID.Market != Market.Kraken)
@@ -91,14 +97,14 @@ namespace QuantConnect.Brokerages.Kraken
         /// <summary>
         /// Return Lean <see cref="Symbol"/> instance for passed Kraken market Ticker
         /// </summary>
-        /// <param name="brokerageSymbol"></param>
-        /// <param name="securityType"></param>
-        /// <param name="market"></param>
-        /// <param name="expirationDate"></param>
-        /// <param name="strike"></param>
-        /// <param name="optionRight"></param>
-        /// <returns></returns>
-        /// <exception cref="ArgumentException"></exception>
+        /// <param name="brokerageSymbol">Symbol that comes from Kraken API</param>
+        /// <param name="securityType">Always Crypto</param>
+        /// <param name="market">Always Kraken</param>
+        /// <param name="expirationDate">Always default(no expiration symbols in Crypto)</param>
+        /// <param name="strike">Always 0</param>
+        /// <param name="optionRight">Always Call - not used in Crypto</param>
+        /// <returns>Lean <see cref="Symbol"/></returns>
+        /// <exception cref="ArgumentException">Wrong Lean <see cref="Symbol"/></exception>
         public Symbol GetLeanSymbol(string brokerageSymbol, SecurityType securityType = SecurityType.Crypto, string market = Market.Kraken, DateTime expirationDate = default(DateTime),
             decimal strike = 0, OptionRight optionRight = OptionRight.Call)
         {
@@ -120,6 +126,17 @@ namespace QuantConnect.Brokerages.Kraken
             return symbol;
         }
         
+        /// <summary>
+        /// Return Lean <see cref="Symbol"/> instance for passed Kraken market Ticker from OpenOrders endpoint
+        /// </summary>
+        /// <param name="brokerageSymbol">Symbol that comes from OpenOrders endpoint</param>
+        /// <param name="securityType">Always Crypto</param>
+        /// <param name="market">Always Kraken</param>
+        /// <param name="expirationDate">Always default(no expiration symbols in Crypto)</param>
+        /// <param name="strike">Always 0</param>
+        /// <param name="optionRight">Always Call - not used in Crypto</param>
+        /// <returns>Lean <see cref="Symbol"/></returns>
+        /// <exception cref="ArgumentException">Wrong Lean <see cref="Symbol"/></exception>
         public Symbol GetLeanSymbolFromOpenOrders(string brokerageSymbol, SecurityType securityType = SecurityType.Crypto, string market = Market.Kraken, DateTime expirationDate = default(DateTime),
             decimal strike = 0, OptionRight optionRight = OptionRight.Call)
         {
@@ -133,6 +150,11 @@ namespace QuantConnect.Brokerages.Kraken
                 throw new ArgumentException($"Only crypto symbols available in Kraken now. Current symbol security type: {securityType}");
             }
 
+            if (_openOrdersSymbolMap.ContainsKey(brokerageSymbol))
+            {
+                return _openOrdersSymbolMap[brokerageSymbol];
+            }
+
             var symbol = _symbolPropertiesMap.Where(kvp => kvp.Value.Description.Replace("/", string.Empty) == brokerageSymbol);
             
             if (symbol == null || !symbol.Any())
@@ -140,7 +162,9 @@ namespace QuantConnect.Brokerages.Kraken
                 throw new ArgumentException($"Unknown symbol: {brokerageSymbol}/{securityType}/{market}");
             }
 
-            return symbol.First().Key;
+            _openOrdersSymbolMap[brokerageSymbol] = symbol.First().Key;
+            
+            return _openOrdersSymbolMap[brokerageSymbol];
         }
         
         /// <summary>
@@ -153,13 +177,12 @@ namespace QuantConnect.Brokerages.Kraken
             return !string.IsNullOrWhiteSpace(symbol?.Value) && _symbolPropertiesMap.ContainsKey(symbol);
         }
 
-        
         /// <summary>
         /// Get Kraken Websocket ticker for passed <see cref="Symbol"/>
         /// </summary>
-        /// <param name="symbol"></param>
-        /// <returns></returns>
-        /// <exception cref="ArgumentException"></exception>
+        /// <param name="symbol">Lean <see cref="Symbol"/></param>
+        /// <returns>Websocket symbol</returns>
+        /// <exception cref="ArgumentException">Wrong Lean <see cref="Symbol"/></exception>
         public string GetWebsocketSymbol(Symbol symbol)
         {
             if (symbol.ID.Market != Market.Kraken)
@@ -182,24 +205,32 @@ namespace QuantConnect.Brokerages.Kraken
         /// <summary>
         /// Get Lean <see cref="Symbol"/> from Kraken Websocket ticker </summary>
         /// <param name="wsSymbol"></param>
-        /// <returns></returns>
-        /// <exception cref="ArgumentException"></exception>
+        /// <returns>Lean <see cref="Symbol"/></returns>
+        /// <exception cref="ArgumentException">Unknown Websocket symbol</exception>
         public Symbol GetSymbolFromWebsocket(string wsSymbol)
         {
+            if (_wsSymbolMap.ContainsKey(wsSymbol))
+            {
+                return _wsSymbolMap[wsSymbol];
+            }
+            
             var symbol = _symbolPropertiesMap.Where(i => i.Value.Description == wsSymbol);
             if (symbol == null || !symbol.Any())
             {
                 throw new ArgumentException($"Unknown symbol: {wsSymbol}/{SecurityType.Crypto}/{Market.Kraken}");
             }
-            return symbol.First().Key;
+
+            _wsSymbolMap[wsSymbol] = symbol.First().Key;
+            
+            return _wsSymbolMap[wsSymbol];
         }
         
         /// <summary>
         /// Convert Kraken Currency to Lean Currency
         /// </summary>
-        /// <param name="marketCurrency"></param>
-        /// <returns></returns>
-        /// <exception cref="ArgumentException"></exception>
+        /// <param name="marketCurrency">Kraken currency</param>
+        /// <returns>Lean currency</returns>
+        /// <exception cref="ArgumentException">Unknown Kraken currency</exception>
         public string ConvertCurrency(string marketCurrency)
         {
             if (!_currencyMap.TryGetValue(marketCurrency, out var symbol))

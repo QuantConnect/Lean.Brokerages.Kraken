@@ -16,7 +16,7 @@
 using System;
 using QuantConnect.ToolBox.KrakenDownloader;
 
-namespace QuantConnect.TemplateBrokerage.ToolBox
+namespace QuantConnect.Brokerage.ToolBox
 {
     static class Program
     {

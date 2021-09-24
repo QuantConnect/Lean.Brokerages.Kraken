@@ -9,9 +9,9 @@
         <Copyright>Copyright ©  2021</Copyright>
         <TestProjectType>UnitTest</TestProjectType>
         <OutputPath>bin\$(Configuration)\</OutputPath>
-        <Product>QuantConnect.TemplateBrokerage.Tests</Product>
-        <RootNamespace>QuantConnect.TemplateBrokerage.Tests</RootNamespace>
-        <AssemblyTitle>QuantConnect.TemplateBrokerage.Tests</AssemblyTitle>
+        <Product>QuantConnect.KrakenBrokerage.Tests</Product>
+        <RootNamespace>QuantConnect.KrakenBrokerage.Tests</RootNamespace>
+        <AssemblyTitle>QuantConnect.KrakenBrokerage.Tests</AssemblyTitle>
         <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
         <PackageId>QuantConnect.KrakenBrokerage.Tests</PackageId>
     </PropertyGroup>
@@ -30,5 +30,12 @@
       <ProjectReference Include="..\..\Lean\Tests\QuantConnect.Tests.csproj" />
       <ProjectReference Include="..\QuantConnect.KrakenBrokerage.ToolBox\QuantConnect.KrakenBrokerage.ToolBox.csproj" />
       <ProjectReference Include="..\QuantConnect.KrakenBrokerage\QuantConnect.KrakenBrokerage.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <None Remove="config.json" />
+      <Content Include="config.json">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
     </ItemGroup>
 </Project>

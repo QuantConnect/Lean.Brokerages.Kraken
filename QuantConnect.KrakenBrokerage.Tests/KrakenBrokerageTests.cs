@@ -33,12 +33,12 @@ namespace QuantConnect.Tests.Brokerages.Kraken
 {
     public partial class KrakenBrokerageTests : BrokerageTests
     {
-        
+
         protected override IBrokerage CreateBrokerage(IOrderProvider orderProvider, ISecurityProvider securityProvider)
         {
             var securities = new SecurityManager(new TimeKeeper(DateTime.UtcNow, TimeZones.NewYork))
             {
-                { Symbol, CreateSecurity(Symbol) }
+                {Symbol, CreateSecurity(Symbol)}
             };
 
             var transactions = new SecurityTransactionManager(null, securities);
@@ -52,15 +52,15 @@ namespace QuantConnect.Tests.Brokerages.Kraken
             var apiKey = Config.Get("kraken-api-key");
             var apiSecret = Config.Get("kraken-api-secret");
             var tier = Config.Get("kraken-verification-tier");
-            
+
 
             return new KrakenBrokerage(apiKey, apiSecret, tier, algorithm.Object, new AggregationManager(), null);
         }
 
         protected override Symbol Symbol => StaticSymbol;
-        
+
         private static Symbol StaticSymbol => Symbol.Create("ETHUSD", SecurityType.Crypto, Market.Kraken);
-        
+
         public static TestCaseData[] OrderParameters => new[]
         {
             new TestCaseData(new MarketOrderTestParameters(StaticSymbol)).SetName("MarketOrder"),
@@ -77,12 +77,12 @@ namespace QuantConnect.Tests.Brokerages.Kraken
 
         protected override decimal GetAskPrice(Symbol symbol)
         {
-            var brokerage = (KrakenBrokerage)Brokerage;
+            var brokerage = (KrakenBrokerage) Brokerage;
             var tick = brokerage.GetTick(symbol);
 
             return tick.AskPrice;
         }
-        
+
         protected override decimal GetDefaultQuantity() => 0.004m; // ETH order minimum
 
         [Test, TestCaseSource(nameof(OrderParameters))]
@@ -125,15 +125,6 @@ namespace QuantConnect.Tests.Brokerages.Kraken
         public override void LongFromShort(OrderTestParameters parameters)
         {
             base.LongFromShort(parameters);
-        }
-        
-        [Test]
-        public void CloseOrder()
-        {
-            var id = "OTVPA2-AVWQN-AM5PEU";
-            var cancel = Brokerage.CancelOrder(new MarketOrder {BrokerId = {id}});
-
-            Console.ReadLine();
         }
     }
 }
