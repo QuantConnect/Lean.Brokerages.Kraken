@@ -31,6 +31,8 @@ namespace QuantConnect.Tests.Brokerages.Kraken
 
         protected override IBrokerage CreateBrokerage(IOrderProvider orderProvider, ISecurityProvider securityProvider)
         {
+            var environment = Environment.GetEnvironmentVariables();
+            
             var securities = new SecurityManager(new TimeKeeper(DateTime.UtcNow, TimeZones.NewYork))
             {
                 {Symbol, CreateSecurity(Symbol)}
@@ -44,8 +46,21 @@ namespace QuantConnect.Tests.Brokerages.Kraken
             algorithm.Setup(a => a.BrokerageModel).Returns(new KrakenBrokerageModel(AccountType.Margin));
             algorithm.Setup(a => a.Portfolio).Returns(new SecurityPortfolioManager(securities, transactions));
 
-            var apiKey = Config.Get("kraken-api-key");
-            var apiSecret = Config.Get("kraken-api-secret");
+            var key = "";
+            var secret = "";
+
+            if (environment.Contains("KRAKEN_PUBLIC"))
+            {
+                key = environment["KRAKEN_PUBLIC"].ToString();
+            }
+            
+            if (environment.Contains("KRAKEN_PRIVATE"))
+            {
+                secret = environment["KRAKEN_PRIVATE"].ToString();
+            }
+            
+            var apiKey = Config.Get("kraken-api-key", key);
+            var apiSecret = Config.Get("kraken-api-secret", secret);
             var tier = Config.Get("kraken-verification-tier");
 
 
