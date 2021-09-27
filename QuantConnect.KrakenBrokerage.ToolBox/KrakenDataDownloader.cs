@@ -64,15 +64,6 @@ namespace QuantConnect.ToolBox.KrakenDownloader
                 throw new ArgumentException($"The ticker {symbol.Value} is not available in Kraken. Use Lean symbols for downloader (i.e BTCUSD, not XXBTZUSD)");
             }
 
-            if (resolution == Resolution.Tick)
-            {
-                foreach (var baseData in TradesDownload(symbol, startUtc, endUtc))
-                {
-                    yield return baseData;
-                }
-                yield break;
-            }
-
             if (resolution == Resolution.Second)
             {
                 throw new ArgumentException("Kraken does not support seconds resolution.");
@@ -98,118 +89,7 @@ namespace QuantConnect.ToolBox.KrakenDownloader
             }
            
         }
-
-        /// <summary>
-        /// Download trades (TradeBars with resolution tick)
-        /// </summary>
-        /// <param name="symbol">Symbol for the data we're looking for.</param>
-        /// <param name="startUtc">Start time of the data in UTC</param>
-        /// <param name="endUtc">End time of the data in UTC</param>
-        /// <returns>Enumerable of base data for this symbol</returns>
-        private IEnumerable<BaseData> TradesDownload(Symbol symbol, DateTime startUtc, DateTime endUtc)
-        {
-            var startUnixTime = Convert.ToInt64(Time.DateTimeToUnixTimeStamp(startUtc) * 1000000000); // Multiply by 10^9 per Kraken API
-            var endUnixTime = Convert.ToInt64(Time.DateTimeToUnixTimeStamp(endUtc) * 1000000000);
-            var marketTicker = _symbolMapper.GetBrokerageSymbol(symbol);
-            var url = string.Format(CultureInfo.InvariantCulture, UrlPrototype, marketTicker, startUnixTime);
-            List<List<string>> data;
-
-            using (var client = new WebClient())
-            {
-                var rateGate = new RateGate(15, TimeSpan.FromMinutes(1)); // 15 calls per minute for Kraken API
-
-                rateGate.WaitToProceed();
-                var response = client.DownloadString(url);
-                dynamic result = JsonConvert.DeserializeObject<dynamic>(response);
-                if (result.error.Count != 0)
-                {
-                    throw new Exception("Error in Kraken API: " + result.error[0]);
-                }
-
-                if (result.result.ContainsKey(marketTicker))
-                {
-                    data = result.result[marketTicker].ToObject<List<List<string>>>();
-                }
-                else
-                {
-                    throw new NotSupportedException("Asset pair was not found in the response. Make sure you use the correct model (XBTUSD -> XXBTZUSD).");
-                }
-
-                foreach (var i in data)
-                {
-                    var time = Time.UnixTimeStampToDateTime(Parse.Double(i[2].Split('.')[0]));
-                    if (time > endUtc)
-                    {
-                        break;
-                    }
-
-                    var value = Parse.Decimal(i[0]);
-                    var volume = Parse.Decimal(i[1]);
-
-                    yield return new Tick
-                    {
-                        Value = value,
-                        Time = time,
-                        DataType = MarketDataType.Tick,
-                        Symbol = symbol,
-                        TickType = TickType.Trade,
-                        Quantity = volume,
-                        Exchange = Market.Kraken
-                    };
-                }
-
-                var last = Convert.ToInt64(result.result.last);
-                while (last < endUnixTime)
-                {
-                    url = string.Format(UrlPrototype, marketTicker, last);
-
-                    rateGate.WaitToProceed();
-                    response = client.DownloadString(url);
-                    result = JsonConvert.DeserializeObject<dynamic>(response);
-
-                    var errorCount = 0;
-                    while (result.error.Count != 0 && errorCount < 10)
-                    {
-                        errorCount++;
-                        rateGate.WaitToProceed();
-                        response = client.DownloadString(url);
-                        result = JsonConvert.DeserializeObject<dynamic>(response);
-                    }
-
-                    if (result.error.Count != 0 && errorCount >= 10)
-                    {
-                        throw new Exception("Error in Kraken API: " + result.error[0]);
-                    }
-
-                    data = result.result[marketTicker].ToObject<List<List<string>>>();
-
-                    foreach (var i in data)
-                    {
-                        var time = Time.UnixTimeStampToDateTime(Parse.Double(i[2].Split('.')[0]));
-                        if (time > endUtc)
-                        {
-                            break;
-                        }
-
-                        var value = Parse.Decimal(i[0]);
-                        var volume = Parse.Decimal(i[1]);
-
-                        yield return new Tick
-                        {
-                            Value = value,
-                            Time = time,
-                            DataType = MarketDataType.Tick,
-                            Symbol = symbol,
-                            TickType = TickType.Trade,
-                            Quantity = volume,
-                            Exchange = Market.Kraken
-                        };
-                    }
-
-                    last = Convert.ToInt64(result.result.last);
-                }
-            }
-        }
+        
         
         /// <summary>
         /// Aggregates a list of minute bars at the requested resolution

@@ -33,23 +33,25 @@ namespace QuantConnect.Brokerages.Kraken
         private Dictionary<string, decimal> RateLimitsCancelPerSymbolDictionary { get; set; }
         
         // specify very big number of occurrences, because we will estimate it by ourselves. Will be used only for cooldown
-        private readonly RateGate _restRateLimiter = new RateGate(1, TimeSpan.FromSeconds(5));
+        private readonly RateGate _restRateLimiter = new RateGate(1, TimeSpan.FromSeconds(20));
         
         public KrakenBrokerageRateLimits(string verificationTier)
         {
             RateLimitsOrderPerSymbolDictionary = new Dictionary<string, int>();
             RateLimitsCancelPerSymbolDictionary = new Dictionary<string, decimal>();
 
-            switch (verificationTier.ToLower())
+            Enum.TryParse(verificationTier, true, out KrakenVerificationTier tier);
+            
+            switch (tier)
             {
-                case "intermediate":
+                case KrakenVerificationTier.Intermediate:
                     _rateLimitsDictionary[KrakenRateLimitType.Common] = 20;
                     _rateLimitsDictionary[KrakenRateLimitType.Orders] = 80;
                     _rateLimitsDictionary[KrakenRateLimitType.Cancel] = 125;
                     _rateLimitsDecayDictionary[KrakenRateLimitType.Common] = 0.5m;
                     _rateLimitsDecayDictionary[KrakenRateLimitType.Cancel] = 2.34m;
                     break;
-                case "pro":
+                case KrakenVerificationTier.Pro:
                     _rateLimitsDictionary[KrakenRateLimitType.Common] = 20;
                     _rateLimitsDictionary[KrakenRateLimitType.Orders] = 225;
                     _rateLimitsDictionary[KrakenRateLimitType.Cancel] = 180;

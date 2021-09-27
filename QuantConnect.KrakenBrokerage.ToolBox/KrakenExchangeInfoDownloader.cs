@@ -38,13 +38,13 @@ namespace QuantConnect.ToolBox.KrakenDownloader
                 }
                 var priceDecimals = Convert.ToDecimal(Math.Round(Math.Pow(0.1, Convert.ToInt32(instr.Value["pair_decimals"])), Convert.ToInt32(instr.Value["pair_decimals"])));
                 var quantityDecimals = Convert.ToDecimal(Math.Round(Math.Pow(0.1, Convert.ToInt32(instr.Value["lot_decimals"])), Convert.ToInt32(instr.Value["lot_decimals"])));
-                var @base = instr.Value["wsname"].ToString().Split("/")[1];
+                var quote = instr.Value["wsname"].ToString().Split("/")[1];
             
-                if (@base == "XBT")
+                if (quote == "XBT")
                 {
-                    @base = "BTC";
+                    quote = "BTC";
                 }
-                yield return $"kraken,{instr.Value["altname"]},crypto,{instr.Value["wsname"]},{@base},{instr.Value["lot_multiplier"]},{priceDecimals},{quantityDecimals},{instr.Name}";
+                yield return $"kraken,{instr.Value["altname"]},crypto,{instr.Value["wsname"]},{quote},{instr.Value["lot_multiplier"]},{priceDecimals},{quantityDecimals},{instr.Name}";
             }
         }
     }

@@ -129,6 +129,7 @@ namespace QuantConnect.Tests.Brokerages.Kraken
                 return new[]
                 {
                     // valid
+                    new TestCaseData(Symbol.Create("ETHUSD", SecurityType.Crypto, Market.Kraken), Resolution.Tick, Time.OneHour, false),
                     new TestCaseData(Symbol.Create("ETHUSD", SecurityType.Crypto, Market.Kraken), Resolution.Minute, Time.OneDay, false),
                     new TestCaseData(Symbol.Create("ETHUSD", SecurityType.Crypto, Market.Kraken), Resolution.Hour, TimeSpan.FromDays(30), false),
                     new TestCaseData(Symbol.Create("ETHUSD", SecurityType.Crypto, Market.Kraken), Resolution.Daily, TimeSpan.FromDays(15), false),
@@ -142,7 +143,6 @@ namespace QuantConnect.Tests.Brokerages.Kraken
             {
                 return new[]
                 {
-                    new TestCaseData(Symbol.Create("ETHUSD", SecurityType.Crypto, Market.Kraken), Resolution.Tick, TimeSpan.FromSeconds(15)),
                     new TestCaseData(Symbol.Create("ETHUSD", SecurityType.Crypto, Market.Kraken), Resolution.Second, Time.OneMinute),
                 };
             }

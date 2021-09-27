@@ -6,5 +6,12 @@ namespace QuantConnect.Brokerages.Kraken.Models
         Orders,
         Cancel
     }
+
+    public enum KrakenVerificationTier
+    {
+        Starter,
+        Intermediate,
+        Pro
+    }
     
 }

@@ -24,11 +24,11 @@ namespace QuantConnect.Tests.Brokerages.Kraken
             watch.Stop();
             if (shouldExceed)
             {
-                Assert.Greater(watch.ElapsedMilliseconds, 44000);
+                Assert.Greater(watch.ElapsedMilliseconds, 19000);
             }
             else
             {
-                Assert.Less(watch.ElapsedMilliseconds, 44000);
+                Assert.Less(watch.ElapsedMilliseconds, 20000);
                 Assert.AreEqual(requestNumber, rateLimiter.RateLimitCounter);
             }
         }
@@ -73,11 +73,11 @@ namespace QuantConnect.Tests.Brokerages.Kraken
             watch.Stop();
             if (shouldExceed)
             {
-                Assert.Greater(watch.ElapsedMilliseconds, 44000);
+                Assert.Greater(watch.ElapsedMilliseconds, 19000);
             }
             else
             {
-                Assert.Less(watch.ElapsedMilliseconds, 44000);
+                Assert.Less(watch.ElapsedMilliseconds, 20000);
             }
         }
         
@@ -121,11 +121,11 @@ namespace QuantConnect.Tests.Brokerages.Kraken
 
             if (shouldExceed)
             {
-                Assert.Greater(watch.ElapsedMilliseconds, 4000);
+                Assert.Greater(watch.ElapsedMilliseconds, 19000);
             }
             else
             {
-                Assert.Less(watch.ElapsedMilliseconds, 4000);
+                Assert.Less(watch.ElapsedMilliseconds, 20000);
             }
         }
         

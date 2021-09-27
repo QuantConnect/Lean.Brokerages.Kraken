@@ -20,7 +20,12 @@ namespace QuantConnect.Brokerages.Kraken
         /// Locking object for the Ticks list in the data queue handler
         /// </summary>
         public readonly object TickLocker = new object();
-        
+
+        /// <summary>
+        /// Token needs to have access to auth wss. Initialized in SubscribeAuth
+        /// </summary>
+        private string WebsocketToken { get; set; }
+
         #region Aggregator Update
 
         /// <summary>
@@ -238,18 +243,9 @@ namespace QuantConnect.Brokerages.Kraken
         /// <exception cref="Exception"></exception>
         private string GetWebsocketToken()
         {
-            var nonce = Time.DateTimeToUnixTimeStampMilliseconds(DateTime.UtcNow).ConvertInvariant<long>();
-            var param = new Dictionary<string, object>
-            {
-                {"nonce", nonce.ToString()}
-            };
             var query = "/0/private/GetWebSocketsToken";
 
-            var headers = CreateSignature(query, nonce, BuildUrlEncode(param));
-
-            var request = CreateRequest(query, headers, param, Method.POST);
-
-            var response = ExecuteRestRequest(request);
+            var response = MakeRequest(query, method:Method.POST, isPrivate: true);
 
             if (response.StatusCode != HttpStatusCode.OK)
             {
@@ -276,14 +272,14 @@ namespace QuantConnect.Brokerages.Kraken
         {
             if (WebSocket.IsOpen)
             {
-                var token = GetWebsocketToken();
+               WebsocketToken = GetWebsocketToken();
 
                 WebSocket.Send(JsonConvert.SerializeObject(new
                 {
                     @event = "subscribe",
                     subscription = new
                     {
-                        token,
+                        token = WebsocketToken,
                         name = "openOrders"
                     }
                 }));

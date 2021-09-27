@@ -14,18 +14,13 @@
 */
 
 using System;
-using System.Threading;
 using Moq;
 using NUnit.Framework;
 using QuantConnect.Brokerages;
 using QuantConnect.Brokerages.Kraken;
 using QuantConnect.Configuration;
-using QuantConnect.Data;
-using QuantConnect.Data.Market;
 using QuantConnect.Interfaces;
 using QuantConnect.Lean.Engine.DataFeeds;
-using QuantConnect.Logging;
-using QuantConnect.Orders;
 using QuantConnect.Securities;
 using QuantConnect.Tests.Common.Securities;
 
@@ -46,7 +41,7 @@ namespace QuantConnect.Tests.Brokerages.Kraken
 
             var algorithm = new Mock<IAlgorithm>();
             algorithm.Setup(a => a.Transactions).Returns(transactions);
-            algorithm.Setup(a => a.BrokerageModel).Returns(new KrakenBrokerageModel());
+            algorithm.Setup(a => a.BrokerageModel).Returns(new KrakenBrokerageModel(AccountType.Margin));
             algorithm.Setup(a => a.Portfolio).Returns(new SecurityPortfolioManager(securities, transactions));
 
             var apiKey = Config.Get("kraken-api-key");
@@ -70,6 +65,14 @@ namespace QuantConnect.Tests.Brokerages.Kraken
             new TestCaseData(new LimitIfTouchedOrderTestParameters(StaticSymbol, 5000, 100)).SetName("LimitIfTouchedOrder"),
         };
 
+        public static TestCaseData[] CancelOrderParameters => new[]
+        {
+            new TestCaseData(new LimitOrderTestParameters(StaticSymbol, 5000, 100)).SetName("LimitOrder"),
+            new TestCaseData(new StopLimitOrderTestParameters(StaticSymbol, 5000, 100)).SetName("StopLimitOrder"),
+            new TestCaseData(new StopMarketOrderTestParameters(StaticSymbol, 5000, 100)).SetName("StopMarketOrder"),
+            new TestCaseData(new LimitIfTouchedOrderTestParameters(StaticSymbol, 5000, 100)).SetName("LimitIfTouchedOrder"),
+        };
+        
         protected override SecurityType SecurityType => SecurityType.Crypto;
         protected override bool IsAsync() => true;
 
@@ -85,7 +88,7 @@ namespace QuantConnect.Tests.Brokerages.Kraken
 
         protected override decimal GetDefaultQuantity() => 0.004m; // ETH order minimum
 
-        [Test, TestCaseSource(nameof(OrderParameters))]
+        [Test, TestCaseSource(nameof(CancelOrderParameters))]
         public override void CancelOrders(OrderTestParameters parameters)
         {
             base.CancelOrders(parameters);

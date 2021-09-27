@@ -122,7 +122,7 @@ namespace QuantConnect.Brokerages.Kraken
                         order = _algorithm.Transactions.GetOrderByBrokerageId(brokerId);
                         if (order == null)
                         {
-                            Log.Error($"OnOrderUpdate(): order not found: BrokerId: {brokerId}");
+                            Log.Error($"EmitOrderEvent(): order not found: BrokerId: {brokerId}");
                             continue;
                         }
                     }
@@ -223,7 +223,7 @@ namespace QuantConnect.Brokerages.Kraken
                 {"event", "addOrder"},
                 {"pair", symbol},
                 {"volume", order.AbsoluteQuantity.ToStringInvariant()},
-                {"type", order.Direction == OrderDirection.Buy ? "buy" : "sell"},
+                {"type", order.Direction == OrderDirection.Buy ?  "buy" : "sell"},
                 {"token", token},
             };
 
@@ -263,6 +263,8 @@ namespace QuantConnect.Brokerages.Kraken
                 parameters.Add("ordertype", "take-profit-limit");
                 parameters.Add("price", limitIfTouchedOrder.TriggerPrice.ToStringInvariant());
                 parameters.Add("price2", limitIfTouchedOrder.LimitPrice.ToStringInvariant());
+                // LIT has reversible logic on kraken.
+                parameters["type"] = order.Direction == OrderDirection.Buy ? "sell" : "buy";
             }
 
 

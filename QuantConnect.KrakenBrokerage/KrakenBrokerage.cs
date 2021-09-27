@@ -74,7 +74,7 @@ namespace QuantConnect.Brokerages.Kraken
             _algorithm = algorithm;
             _job = job;
             _aggregator = aggregator;
-            _securityProvider = algorithm.Portfolio;
+            _securityProvider = algorithm?.Portfolio;
 
             _rateLimiter = new KrakenBrokerageRateLimits(verificationTier);
             
@@ -121,18 +121,9 @@ namespace QuantConnect.Brokerages.Kraken
         /// <exception cref="Exception">Kraken api exception</exception>
         public override List<Order> GetOpenOrders()
         {
-            var nonce = Time.DateTimeToUnixTimeStampMilliseconds(DateTime.UtcNow).ConvertInvariant<long>();
-            var param = new Dictionary<string, object>
-            {
-                {"nonce" , nonce.ToString()}
-            };
             string query = "/0/private/OpenOrders";
             
-            var headers = CreateSignature(query, nonce, BuildUrlEncode(param));
-            
-            var request = CreateRequest(query, headers, param, Method.POST);
-
-            var response = ExecuteRestRequest(request);
+            var response = MakeRequest(query, method:Method.POST, isPrivate: true);
             
             if (response.StatusCode != HttpStatusCode.OK)
             {
@@ -243,19 +234,18 @@ namespace QuantConnect.Brokerages.Kraken
         /// <exception cref="Exception">Kraken api exception</exception>
         public override List<Holding> GetAccountHoldings()
         {
-            var nonce = Time.DateTimeToUnixTimeStampMilliseconds(DateTime.UtcNow).ConvertInvariant<long>();
+            if (_algorithm.BrokerageModel.AccountType == AccountType.Cash)
+            {
+                return base.GetAccountHoldings(_job?.BrokerageData, _algorithm.Securities.Values);
+            }
+            
             var param = new Dictionary<string, object>
             {
-                {"nonce" , nonce.ToString()},
                 {"docalcs", true}
             };
             var query = "/0/private/OpenPositions";
-            
-            var headers = CreateSignature(query, nonce, BuildUrlEncode(param));
-            
-            var request = CreateRequest(query, headers, param, Method.POST);
 
-            var response = ExecuteRestRequest(request);
+            var response = MakeRequest(query, param, Method.POST, true);
             
             if (response.StatusCode != HttpStatusCode.OK)
             {
@@ -299,18 +289,9 @@ namespace QuantConnect.Brokerages.Kraken
         /// <exception cref="Exception">Kraken api exception</exception>
         public override List<CashAmount> GetCashBalance()
         {
-            var nonce = Time.DateTimeToUnixTimeStampMilliseconds(DateTime.UtcNow).ConvertInvariant<long>();
-            var param = new Dictionary<string, object>
-            {
-                {"nonce" , nonce.ToString()}
-            };
             string query = "/0/private/Balance";
             
-            var headers = CreateSignature(query, nonce, BuildUrlEncode(param));
-
-            var request = CreateRequest(query, headers, param, Method.POST);
-
-            var response = ExecuteRestRequest(request);
+            var response = MakeRequest(query,  method:Method.POST, isPrivate: true);
             
             if (response.StatusCode != HttpStatusCode.OK)
             {
@@ -338,7 +319,7 @@ namespace QuantConnect.Brokerages.Kraken
         /// <returns>Order placed or not</returns>
         public override bool PlaceOrder(Order order)
         {
-            var token = GetWebsocketToken();
+            var token = string.IsNullOrEmpty(WebsocketToken) ? GetWebsocketToken() : WebsocketToken;
 
             var parameters = CreateKrakenOrder(order, token, out var symbol);
 
@@ -376,7 +357,7 @@ namespace QuantConnect.Brokerages.Kraken
                 Log.Trace("KrakenBrokerage.CancelOrder(): Unable to cancel order without BrokerId.");
                 return false;
             }
-            var token = GetWebsocketToken();
+            var token = string.IsNullOrEmpty(WebsocketToken) ? GetWebsocketToken() : WebsocketToken;
             var json = JsonConvert.SerializeObject(new
             {
                 @event = "cancelOrder",
@@ -398,7 +379,7 @@ namespace QuantConnect.Brokerages.Kraken
         /// <returns>An enumerable of bars covering the span specified in the request</returns>
         public override IEnumerable<BaseData> GetHistory(HistoryRequest request)
         {
-            if (request.Resolution == Resolution.Tick || request.Resolution == Resolution.Second)
+            if (request.Resolution == Resolution.Second)
             {
                 OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, "InvalidResolution",
                     $"{request.Resolution} resolution is not supported, no history returned"));
@@ -421,35 +402,43 @@ namespace QuantConnect.Brokerages.Kraken
 
             var period = request.Resolution.ToTimeSpan();
 
-            if (request.StartTimeUtc < DateTime.UtcNow - period * 720)
+            if (request.Resolution != Resolution.Tick && request.StartTimeUtc < DateTime.UtcNow - period * 720)
             {
                 OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, "NotFullHistoryWarning",
                     $"Kraken return max 720 TradeBars in history request. Now it will return TradeBars starting from {DateTime.UtcNow - period * 720}"));
             }
             
             var marketSymbol = _symbolMapper.GetBrokerageSymbol(request.Symbol);
+
+            var enumerator = request.Resolution == Resolution.Tick ? GetTradeBars(request, marketSymbol) : GetOhlcBars(request, marketSymbol, period);
+            foreach (var baseData in enumerator)
+            {
+                yield return baseData;
+            }
+        }
+
+        private IEnumerable<BaseData> GetOhlcBars(HistoryRequest request, string marketSymbol, TimeSpan period)
+        {
             var resolution = ConvertResolution(request.Resolution);
-            var url = _apiUrl + $"/0/public/OHLC?pair={marketSymbol}&interval={resolution}";
+            var url = $"/0/public/OHLC?pair={marketSymbol}&interval={resolution}";
             var start = (long) Time.DateTimeToUnixTimeStamp(request.StartTimeUtc);
             var end = (long) Time.DateTimeToUnixTimeStamp(request.EndTimeUtc);
-            var resolutionInMs = (long)request.Resolution.ToTimeSpan().TotalSeconds;
+            var resolutionInMs = (long) request.Resolution.ToTimeSpan().TotalSeconds;
 
             while (end - start >= resolutionInMs)
             {
                 var timeframe = $"&since={start}";
 
-                var restRequest = CreateRequest(url + timeframe);
-                
-                var response = ExecuteRestRequest(restRequest);
+                var response = MakeRequest(url + timeframe);
 
                 if (response.StatusCode != HttpStatusCode.OK)
                 {
-                    throw new Exception($"KrakenBrokerage.GetHistory: request failed: [{(int)response.StatusCode}] {response.StatusDescription}, Content: {response.Content}, ErrorMessage: {response.ErrorMessage}");
+                    throw new Exception($"KrakenBrokerage.GetOhlcHistory: request failed: [{(int) response.StatusCode}] {response.StatusDescription}, Content: {response.Content}, ErrorMessage: {response.ErrorMessage}");
                 }
 
                 var token = JToken.Parse(response.Content);
                 var candlesList = token["result"][marketSymbol].ToObject<List<KrakenCandle>>();
-                
+
                 if (candlesList.Count > 0)
                 {
                     var lastValue = candlesList[^1];
@@ -457,12 +446,17 @@ namespace QuantConnect.Brokerages.Kraken
                     {
                         var windowStartTime = Time.UnixTimeStampToDateTime(candlesList[0].Time);
                         var windowEndTime = Time.UnixTimeStampToDateTime(lastValue.Time + resolutionInMs);
-                        Log.Debug($"KrakenRestApiClient.GetHistory(): Received [{marketSymbol}] data for time period from {windowStartTime.ToStringInvariant()} to {windowEndTime.ToStringInvariant()}..");
+                        Log.Debug($"KrakenBrokerage.GetOhlcHistory(): Received [{marketSymbol}] data for time period from {windowStartTime.ToStringInvariant()} to {windowEndTime.ToStringInvariant()}..");
                     }
-                    start = (long)lastValue.Time + resolutionInMs;
+
+                    start = (long) lastValue.Time + resolutionInMs;
 
                     foreach (var kline in candlesList)
                     {
+                        if (kline.Time > end) // no "to" param in Kraken and it returns just 1000 candles since start timestamp
+                        {
+                            yield break;
+                        }
                         yield return new TradeBar()
                         {
                             Time = Time.UnixTimeStampToDateTime(kline.Time),
@@ -484,9 +478,96 @@ namespace QuantConnect.Brokerages.Kraken
                     break;
                 }
             }
-
         }
         
+        private IEnumerable<BaseData> GetTradeBars(HistoryRequest request, string marketSymbol)
+        {
+            var url = $"/0/public/Trades?pair={marketSymbol}";
+            var start = Time.DateTimeToUnixTimeStamp(request.StartTimeUtc);
+            var end = Time.DateTimeToUnixTimeStamp(request.EndTimeUtc);
+            var period = request.Resolution.ToTimeSpan();
+
+            while (end - start > 1) // allow 1 sec difference because of rounding from decimal to long
+            {
+                var timeframe = $"&since={start}";
+
+                var response = MakeRequest(url + timeframe);
+
+                if (response.StatusCode != HttpStatusCode.OK)
+                {
+                    throw new Exception($"KrakenBrokerage.GetTradeHistory: request failed: [{(int) response.StatusCode}] {response.StatusDescription}, Content: {response.Content}, ErrorMessage: {response.ErrorMessage}");
+                }
+
+                var token = JToken.Parse(response.Content);
+                var tradesList = token["result"][marketSymbol].ToObject<List<KrakenTrade>>();
+
+                if (tradesList.Count > 0)
+                {
+                    var lastValue = tradesList[^1];
+                    if (Log.DebuggingEnabled)
+                    {
+                        var windowStartTime = Time.UnixTimeStampToDateTime(tradesList[0].Time);
+                        var windowEndTime = Time.UnixTimeStampToDateTime(lastValue.Time);
+                        Log.Debug($"KrakenBrokerage.GetTradeHistory(): Received [{marketSymbol}] data for time period from {windowStartTime.ToStringInvariant()} to {windowEndTime.ToStringInvariant()}..");
+                    }
+
+                    if (Math.Abs(start - lastValue.Time) == 0) // avoid duplicates
+                    {
+                        break;
+                    }
+                    
+                    start = lastValue.Time;
+
+                    foreach (var kline in tradesList)
+                    {
+                        if (kline.Time > end) // no "to" param in Kraken and it returns just 1000 candles since start timestamp
+                        {
+                            yield break;
+                        }
+                        
+                        yield return new TradeBar()
+                        {
+                            Time = Time.UnixTimeStampToDateTime(kline.Time),
+                            Symbol = request.Symbol,
+                            Low = kline.Price,
+                            High = kline.Price,
+                            Open = kline.Price,
+                            Close = kline.Price,
+                            Volume = kline.Volume,
+                            Value = kline.Price,
+                            DataType = MarketDataType.TradeBar,
+                            Period = period
+                        };
+                    }
+                }
+                else
+                {
+                    // if there is no data just break
+                    break;
+                }
+            }
+        }
+        
+
+        private IRestResponse MakeRequest(string query, IDictionary<string, object> requestBody = null, Method method = Method.GET, bool isPrivate = false)
+        {
+            Dictionary<string, string> headers = null;
+            if (isPrivate)
+            {
+                var nonce = Time.DateTimeToUnixTimeStampMilliseconds(DateTime.UtcNow).ConvertInvariant<long>();
+                
+                requestBody ??= new Dictionary<string, object>();
+                
+                requestBody.Add("nonce", nonce.ToString());
+                
+                headers = CreateSignature(query, nonce, BuildUrlEncode(requestBody));
+            }
+
+            var request = CreateRequest(query, headers, requestBody, method);
+
+            return ExecuteRestRequest(request);
+        }
+
 
         /// <summary>
         /// If an IP address exceeds a certain number of requests per minute
