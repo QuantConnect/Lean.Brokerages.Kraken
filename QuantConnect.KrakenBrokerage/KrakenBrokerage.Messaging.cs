@@ -55,25 +55,13 @@ namespace QuantConnect.Brokerages.Kraken
                         var addOrder = token.ToObject<KrakenWsAddOrderResponse>();
                         var userref = addOrder.Reqid;
                         var brokerId = addOrder.Txid;
-                        PlacedOrdersDictionary.TryGetValue(userref, out var order);
 
-                        if (order == null)
+                        if (CachedOrderIDs.ContainsKey(userref))
                         {
-                            return; // order placed not by Lean - skip
+                            CachedOrderIDs[userref].BrokerId.Clear();
+                            CachedOrderIDs[userref].BrokerId.Add(brokerId);
                         }
 
-                        if (CachedOrderIDs.ContainsKey(order.Id))
-                        {
-                            CachedOrderIDs[order.Id].BrokerId.Clear();
-                            CachedOrderIDs[order.Id].BrokerId.Add(brokerId);
-                        }
-                        else
-                        {
-                            order.BrokerId.Add(brokerId);
-                            CachedOrderIDs.TryAdd(order.Id, order);
-                        }
-
-                        PlacedOrdersDictionary.Remove(userref);
                         return;
                     }
 
@@ -223,20 +211,12 @@ namespace QuantConnect.Brokerages.Kraken
                 {"event", "addOrder"},
                 {"pair", symbol},
                 {"volume", order.AbsoluteQuantity.ToStringInvariant()},
-                {"type", order.Direction == OrderDirection.Buy ?  "buy" : "sell"},
+                {"type", order.Direction == OrderDirection.Buy ? "buy" : "sell"},
                 {"token", token},
             };
 
-            var rand = new Random();
-
-            int id = 0;
-            do
-            {
-                id = rand.Next();
-            } while (PlacedOrdersDictionary.ContainsKey(id));
-
-            parameters.Add("reqid", id);
-            PlacedOrdersDictionary[id] = order;
+            CachedOrderIDs[order.Id] = order;
+            parameters.Add("reqid", order.Id);
 
             if (order is MarketOrder)
             {

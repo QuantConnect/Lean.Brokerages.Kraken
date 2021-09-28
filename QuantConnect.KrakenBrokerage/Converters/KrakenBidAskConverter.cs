@@ -6,9 +6,9 @@ using QuantConnect.Brokerages.Kraken.Models;
 namespace QuantConnect.Brokerages.Kraken.Converters
 {
     /// <summary>
-    /// A custom JSON converter for the Kraken <see cref="KrakenSpread"/> class
+    /// A custom JSON converter for the Kraken <see cref="KrakenBidAsk"/> class
     /// </summary>
-    public class KrakenSpreadConverter : JsonConverter
+    public class KrakenBidAskConverter : JsonConverter
     {
         /// <summary>
         /// Gets a value indicating whether this <see cref="T:Newtonsoft.Json.JsonConverter" /> can write JSON.
@@ -35,13 +35,11 @@ namespace QuantConnect.Brokerages.Kraken.Converters
         {
             var array = JArray.Load(reader);
 
-            return new KrakenSpread
+            return new KrakenBidAsk
             {
-                Bid = array[0].Type == JTokenType.Null ? 0 : Convert.ToDecimal((string) array[0]),
-                Ask = array[1].Type == JTokenType.Null ? 0 : Convert.ToDecimal((string) array[1]),
-                Timestamp = array[2].Type == JTokenType.Null ? 0 : Convert.ToDouble((string) array[2]),
-                BidVolume = array[3].Type == JTokenType.Null ? 0 : Convert.ToDecimal((string) array[3]),
-                AskVolume = array[4].Type == JTokenType.Null ? 0 : Convert.ToDecimal((string) array[4]),
+                Price = array[0].Type == JTokenType.Null ? 0 : Convert.ToDecimal((string) array[0]),
+                Volume = array[1].Type == JTokenType.Null ? 0 : Convert.ToDecimal((string) array[1]),
+                Timestamp = array[2].Type == JTokenType.Null ? 0 : Convert.ToDouble((string) array[2])
             };
         }
 
@@ -54,7 +52,7 @@ namespace QuantConnect.Brokerages.Kraken.Converters
         /// </returns>
         public override bool CanConvert(Type objectType)
         {
-            return objectType == typeof(KrakenSpread);
+            return objectType == typeof(KrakenBidAsk);
         }
     }
 }

@@ -53,11 +53,6 @@ namespace QuantConnect.Brokerages.Kraken
         private const string _wsAuthUrl = "wss://ws-auth.kraken.com";
 
         private readonly RateGate _webSocketRateLimiter = new RateGate(1, TimeSpan.FromSeconds(5));
-        
-        /// <summary>
-        /// Needed to catch placed orders in websocket, then moves to CachedOrderIDs.
-        /// </summary>
-        private Dictionary<int, Order> PlacedOrdersDictionary { get; set; }
 
         /// <summary>
         /// Constructor for brokerage
@@ -77,8 +72,6 @@ namespace QuantConnect.Brokerages.Kraken
             _securityProvider = algorithm?.Portfolio;
 
             _rateLimiter = new KrakenBrokerageRateLimits(verificationTier);
-            
-            PlacedOrdersDictionary = new Dictionary<int, Order>();
 
             SubscriptionManager = new BrokerageMultiWebSocketSubscriptionManager(
                 _wsUrl,
