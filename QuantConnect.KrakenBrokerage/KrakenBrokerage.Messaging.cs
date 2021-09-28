@@ -243,8 +243,6 @@ namespace QuantConnect.Brokerages.Kraken
                 parameters.Add("ordertype", "take-profit-limit");
                 parameters.Add("price", limitIfTouchedOrder.TriggerPrice.ToStringInvariant());
                 parameters.Add("price2", limitIfTouchedOrder.LimitPrice.ToStringInvariant());
-                // LIT has reversible logic on kraken.
-                parameters["type"] = order.Direction == OrderDirection.Buy ? "sell" : "buy";
             }
 
 

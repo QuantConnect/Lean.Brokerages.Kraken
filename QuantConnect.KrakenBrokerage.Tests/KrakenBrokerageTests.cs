@@ -47,21 +47,21 @@ namespace QuantConnect.Tests.Brokerages.Kraken
             algorithm.Setup(a => a.BrokerageModel).Returns(new KrakenBrokerageModel(AccountType.Margin));
             algorithm.Setup(a => a.Portfolio).Returns(new SecurityPortfolioManager(securities, transactions));
 
-            var key = "";
-            var secret = "";
+            var apiKey = Config.Get("kraken-api-key");
+            var apiSecret = Config.Get("kraken-api-secret");
+            
 
-            if (environment.Contains("KRAKEN_PUBLIC"))
+            if (string.IsNullOrEmpty(apiKey) && environment.Contains("KRAKEN_PUBLIC"))
             {
-                key = environment["KRAKEN_PUBLIC"].ToString();
+                apiKey = environment["KRAKEN_PUBLIC"].ToString();
             }
             
-            if (environment.Contains("KRAKEN_PRIVATE"))
+            if (string.IsNullOrEmpty(apiSecret) && environment.Contains("KRAKEN_PRIVATE"))
             {
-                secret = environment["KRAKEN_PRIVATE"].ToString();
+                apiSecret = environment["KRAKEN_PRIVATE"].ToString();
             }
             
-            var apiKey = Config.Get("kraken-api-key", key);
-            var apiSecret = Config.Get("kraken-api-secret", secret);
+
             var tier = Config.Get("kraken-verification-tier");
 
 
@@ -81,6 +81,15 @@ namespace QuantConnect.Tests.Brokerages.Kraken
             new TestCaseData(new LimitIfTouchedOrderTestParameters(StaticSymbol, 5000, 100)).SetName("LimitIfTouchedOrder"),
         };
 
+        public static TestCaseData[] NonUpdatableOrderParameters => new[]
+        {
+            new TestCaseData(new MarketOrderTestParameters(StaticSymbol)).SetName("MarketOrder"),
+            new TestCaseData(new NonUpdateableLimitOrderTestParameters(StaticSymbol, 5000, 100)).SetName("LimitOrder"),
+            new TestCaseData(new NonUpdateableStopLimitOrderTestParameters(StaticSymbol, 5000, 100)).SetName("StopLimitOrder"),
+            new TestCaseData(new NonUpdateableStopMarketOrderTestParameters(StaticSymbol, 5000, 100)).SetName("StopMarketOrder"),
+            // new TestCaseData(new NonUpdateableLimitIfTouchedOrderTestParameters(StaticSymbol, 5000, 100)).SetName("LimitIfTouchedOrder"), don't exist in current version of Lean repo
+        };
+        
         public static TestCaseData[] CancelOrderParameters => new[] // without market
         {
             new TestCaseData(new LimitOrderTestParameters(StaticSymbol, 5000, 100)).SetName("LimitOrder"),
@@ -134,22 +143,16 @@ namespace QuantConnect.Tests.Brokerages.Kraken
             base.CloseFromShort(parameters);
         }
 
-        [Test, TestCaseSource(nameof(OrderParameters))]
+        [Test, TestCaseSource(nameof(NonUpdatableOrderParameters))]
         public override void ShortFromLong(OrderTestParameters parameters)
         {
             base.ShortFromLong(parameters);
         }
 
-        [Test, TestCaseSource(nameof(OrderParameters))]
+        [Test, TestCaseSource(nameof(NonUpdatableOrderParameters))]
         public override void LongFromShort(OrderTestParameters parameters)
         {
             base.LongFromShort(parameters);
-        }
-
-        // Update isn't implemented in Kraken
-        protected override void ModifyOrderUntilFilled(Order order, OrderTestParameters parameters, double secondsTimeout = 90)
-        {
-            return;
         }
     }
 }
