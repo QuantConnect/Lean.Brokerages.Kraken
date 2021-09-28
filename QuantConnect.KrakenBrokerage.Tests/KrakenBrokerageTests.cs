@@ -21,6 +21,7 @@ using QuantConnect.Brokerages.Kraken;
 using QuantConnect.Configuration;
 using QuantConnect.Interfaces;
 using QuantConnect.Lean.Engine.DataFeeds;
+using QuantConnect.Orders;
 using QuantConnect.Securities;
 using QuantConnect.Tests.Common.Securities;
 
@@ -80,7 +81,7 @@ namespace QuantConnect.Tests.Brokerages.Kraken
             new TestCaseData(new LimitIfTouchedOrderTestParameters(StaticSymbol, 5000, 100)).SetName("LimitIfTouchedOrder"),
         };
 
-        public static TestCaseData[] CancelOrderParameters => new[]
+        public static TestCaseData[] CancelOrderParameters => new[] // without market
         {
             new TestCaseData(new LimitOrderTestParameters(StaticSymbol, 5000, 100)).SetName("LimitOrder"),
             new TestCaseData(new StopLimitOrderTestParameters(StaticSymbol, 5000, 100)).SetName("StopLimitOrder"),
@@ -143,6 +144,12 @@ namespace QuantConnect.Tests.Brokerages.Kraken
         public override void LongFromShort(OrderTestParameters parameters)
         {
             base.LongFromShort(parameters);
+        }
+
+        // Update isn't implemented in Kraken
+        protected override void ModifyOrderUntilFilled(Order order, OrderTestParameters parameters, double secondsTimeout = 90)
+        {
+            return;
         }
     }
 }
