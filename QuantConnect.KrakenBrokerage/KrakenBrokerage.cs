@@ -312,9 +312,9 @@ namespace QuantConnect.Brokerages.Kraken
         /// <returns>Order placed or not</returns>
         public override bool PlaceOrder(Order order)
         {
-            var token = string.IsNullOrEmpty(WebsocketToken) ? GetWebsocketToken() : WebsocketToken;
+            WebsocketToken = string.IsNullOrEmpty(WebsocketToken) ? GetWebsocketToken() : WebsocketToken;
 
-            var parameters = CreateKrakenOrder(order, token, out var symbol);
+            var parameters = CreateKrakenOrder(order, out var symbol);
 
             var json = JsonConvert.SerializeObject(parameters);
 
@@ -350,11 +350,12 @@ namespace QuantConnect.Brokerages.Kraken
                 Log.Trace("KrakenBrokerage.CancelOrder(): Unable to cancel order without BrokerId.");
                 return false;
             }
-            var token = string.IsNullOrEmpty(WebsocketToken) ? GetWebsocketToken() : WebsocketToken;
+            
+            WebsocketToken = string.IsNullOrEmpty(WebsocketToken) ? GetWebsocketToken() : WebsocketToken;
             var json = JsonConvert.SerializeObject(new
             {
                 @event = "cancelOrder",
-                token,
+                token = WebsocketToken,
                 txid = order.BrokerId
             });
             

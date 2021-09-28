@@ -202,7 +202,7 @@ namespace QuantConnect.Brokerages.Kraken
             }
         }
         
-        private JsonObject CreateKrakenOrder(Order order, string token, out string symbol)
+        private JsonObject CreateKrakenOrder(Order order, out string symbol)
         {
             symbol = _symbolMapper.GetWebsocketSymbol(order.Symbol);
 
@@ -212,7 +212,7 @@ namespace QuantConnect.Brokerages.Kraken
                 {"pair", symbol},
                 {"volume", order.AbsoluteQuantity.ToStringInvariant()},
                 {"type", order.Direction == OrderDirection.Buy ? "buy" : "sell"},
-                {"token", token},
+                {"token", WebsocketToken},
             };
 
             CachedOrderIDs[order.Id] = order;

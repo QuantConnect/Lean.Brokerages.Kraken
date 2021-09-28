@@ -14,6 +14,8 @@
 */
 
 using System;
+using System.Linq;
+using System.Threading;
 using Moq;
 using NUnit.Framework;
 using QuantConnect.Brokerages;
@@ -21,6 +23,7 @@ using QuantConnect.Brokerages.Kraken;
 using QuantConnect.Configuration;
 using QuantConnect.Interfaces;
 using QuantConnect.Lean.Engine.DataFeeds;
+using QuantConnect.Logging;
 using QuantConnect.Orders;
 using QuantConnect.Securities;
 using QuantConnect.Tests.Common.Securities;
@@ -87,7 +90,7 @@ namespace QuantConnect.Tests.Brokerages.Kraken
             new TestCaseData(new NonUpdateableLimitOrderTestParameters(StaticSymbol, 5000, 100)).SetName("LimitOrder"),
             new TestCaseData(new NonUpdateableStopLimitOrderTestParameters(StaticSymbol, 5000, 100)).SetName("StopLimitOrder"),
             new TestCaseData(new NonUpdateableStopMarketOrderTestParameters(StaticSymbol, 5000, 100)).SetName("StopMarketOrder"),
-            // new TestCaseData(new NonUpdateableLimitIfTouchedOrderTestParameters(StaticSymbol, 5000, 100)).SetName("LimitIfTouchedOrder"), don't exist in current version of Lean repo
+            new TestCaseData(new NonUpdateableLimitIfTouchedOrderTestParameters(StaticSymbol, 5000, 100)).SetName("LimitIfTouchedOrder")
         };
         
         public static TestCaseData[] CancelOrderParameters => new[] // without market
@@ -153,6 +156,22 @@ namespace QuantConnect.Tests.Brokerages.Kraken
         public override void LongFromShort(OrderTestParameters parameters)
         {
             base.LongFromShort(parameters);
+        }
+
+        [Test, Description("In Kraken AccountHoldings would always return 0 as long as leverage 1")]
+        public override void GetAccountHoldings()
+        {
+            Log.Trace("");
+            Log.Trace("GET ACCOUNT HOLDINGS");
+            Log.Trace("");
+            var before = Brokerage.GetAccountHoldings();
+            Assert.AreEqual(0, before.Count());
+
+            PlaceOrderWaitForStatus(new MarketOrder(Symbol, GetDefaultQuantity(), DateTime.Now));
+            Thread.Sleep(3000);
+
+            var after = Brokerage.GetAccountHoldings();
+            Assert.AreEqual(0, after.Count());
         }
     }
 }

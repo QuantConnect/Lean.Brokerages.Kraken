@@ -378,7 +378,7 @@ namespace QuantConnect.Brokerages.Kraken
         {
             if (WebSocket.IsOpen)
             {
-               WebsocketToken = GetWebsocketToken();
+               WebsocketToken = string.IsNullOrEmpty(WebsocketToken) ? GetWebsocketToken() : WebsocketToken;
 
                 WebSocket.Send(JsonConvert.SerializeObject(new
                 {
