@@ -204,6 +204,8 @@ namespace QuantConnect.Tests.Brokerages.Kraken
                 ErrorCurrencyConverter.Instance,
                 RegisteredSecurityDataTypesProvider.Null
             );
+
+            security.BuyingPowerModel = new SecurityMarginModel(2);
             SecurityPortfolioModel model = new SecurityPortfolioModel();
             
             security.FeeModel = new KrakenFeeModel();
@@ -227,6 +229,12 @@ namespace QuantConnect.Tests.Brokerages.Kraken
             
             // Open
             model.ProcessFill(portfolio, security, new OrderEvent(1, Symbol, DateTime.UtcNow, OrderStatus.Filled, OrderDirection.Buy, security.Price, 0.01m, OrderFee.Zero));
+            
+            foreach (var kvp in portfolio.CashBook)
+            {
+                var amount = initialStateDict[kvp.Key];
+                Assert.AreNotEqual(amount, kvp.Value.Amount);
+            }
             
             // Close
             model.ProcessFill(portfolio, security, new OrderEvent(2, Symbol, DateTime.UtcNow, OrderStatus.Filled, OrderDirection.Sell, security.Price, -0.01m, OrderFee.Zero));
