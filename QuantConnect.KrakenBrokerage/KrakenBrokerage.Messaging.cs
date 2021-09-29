@@ -176,6 +176,11 @@ namespace QuantConnect.Brokerages.Kraken
                         {
                             status = OrderStatus.PartiallyFilled;
                         }
+                        
+                        if (direction == OrderDirection.Sell)
+                        {
+                            fillQuantity *= -1;
+                        }
 
                         orderEvent = new OrderEvent
                         (

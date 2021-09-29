@@ -34,7 +34,8 @@ namespace QuantConnect.Tests.Brokerages.Kraken
                 {
                     new TestCaseData(Symbol.Create("EURUSD", SecurityType.Crypto, Market.Kraken), Resolution.Tick, false),
                     new TestCaseData(Symbol.Create("BTCUSD", SecurityType.Crypto, Market.Kraken), Resolution.Tick, false),
-                    new TestCaseData(Symbol.Create("ETHBTC", SecurityType.Crypto, Market.Kraken), Resolution.Tick, false),
+                    new TestCaseData(Symbol.Create("BTCUSD", SecurityType.Crypto, Market.Kraken), Resolution.Second, false),
+                    new TestCaseData(Symbol.Create("BTCUSD", SecurityType.Crypto, Market.Kraken), Resolution.Minute, false),
                 };
             }
         }
@@ -62,18 +63,18 @@ namespace QuantConnect.Tests.Brokerages.Kraken
             {
                 ProcessFeed(brokerage.Subscribe(config, (s, e) => { }),
                     cancelationToken,
-                    (baseData) => { if (baseData != null) { Log.Trace("{baseData}"); }
+                    (baseData) => { if (baseData != null) { Log.Trace($"{baseData}"); }
                     });
             }
 
-            Thread.Sleep(20000);
+            Thread.Sleep(70000);
 
             foreach (var config in configs)
             {
                 brokerage.Unsubscribe(config);
             }
 
-            Thread.Sleep(20000);
+            Thread.Sleep(10000);
 
             cancelationToken.Cancel();
         }

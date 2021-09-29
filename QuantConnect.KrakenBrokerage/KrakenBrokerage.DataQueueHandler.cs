@@ -157,7 +157,7 @@ namespace QuantConnect.Brokerages.Kraken
                     case "heartbeat":
                         return;
                     case "subscriptionStatus":
-                        Log.Trace($"KrakenBrokerage.On{token["status"]}(): Channel subscribed: Id:{token["channelID"]} {token["pair"]}/{token["channelName"]}");
+                        Log.Trace($"KrakenBrokerage.On{token["status"]}(): Channel {token["status"]}: Id:{token["channelID"]} {token["pair"]}/{token["channelName"]}");
                         break;
                 }
             }

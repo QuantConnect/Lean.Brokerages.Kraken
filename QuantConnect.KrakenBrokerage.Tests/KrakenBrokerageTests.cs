@@ -14,6 +14,7 @@
 */
 
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using Moq;
@@ -21,11 +22,15 @@ using NUnit.Framework;
 using QuantConnect.Brokerages;
 using QuantConnect.Brokerages.Kraken;
 using QuantConnect.Configuration;
+using QuantConnect.Data;
+using QuantConnect.Data.Market;
 using QuantConnect.Interfaces;
 using QuantConnect.Lean.Engine.DataFeeds;
 using QuantConnect.Logging;
 using QuantConnect.Orders;
+using QuantConnect.Orders.Fees;
 using QuantConnect.Securities;
+using QuantConnect.Securities.Crypto;
 using QuantConnect.Tests.Common.Securities;
 
 namespace QuantConnect.Tests.Brokerages.Kraken
@@ -50,21 +55,26 @@ namespace QuantConnect.Tests.Brokerages.Kraken
             algorithm.Setup(a => a.BrokerageModel).Returns(new KrakenBrokerageModel(AccountType.Margin));
             algorithm.Setup(a => a.Portfolio).Returns(new SecurityPortfolioManager(securities, transactions));
 
+            if (environment.Contains("KRAKEN_PUBLIC"))
+            {
+                Config.Set("kraken-api-key", environment["KRAKEN_PUBLIC"].ToString());
+            }
+            else
+            {
+                Log.Error("Environment doesn't have KRAKEN_PUBLIC variable");
+            }
+            
+            if (environment.Contains("KRAKEN_PRIVATE"))
+            {
+                Config.Set("kraken-api-secret", environment["KRAKEN_PRIVATE"].ToString());
+            }
+            else
+            {
+                Log.Error("Environment doesn't have KRAKEN_PRIVATE variable");
+            }
+            
             var apiKey = Config.Get("kraken-api-key");
             var apiSecret = Config.Get("kraken-api-secret");
-            
-
-            if (string.IsNullOrEmpty(apiKey) && environment.Contains("KRAKEN_PUBLIC"))
-            {
-                apiKey = environment["KRAKEN_PUBLIC"].ToString();
-            }
-            
-            if (string.IsNullOrEmpty(apiSecret) && environment.Contains("KRAKEN_PRIVATE"))
-            {
-                apiSecret = environment["KRAKEN_PRIVATE"].ToString();
-            }
-            
-
             var tier = Config.Get("kraken-verification-tier");
 
 
@@ -173,5 +183,60 @@ namespace QuantConnect.Tests.Brokerages.Kraken
             var after = Brokerage.GetAccountHoldings();
             Assert.AreEqual(0, after.Count());
         }
+
+        [Test]
+        public void OpenClosePositionTest()
+        {
+            var security = new Crypto( 
+                SecurityExchangeHours.AlwaysOpen(TimeZones.NewYork),
+                new Cash(Currencies.USD, 100, 1m),
+                new SubscriptionDataConfig(
+                    typeof(TradeBar),
+                    Symbol,
+                    Resolution.Minute,
+                    TimeZones.NewYork,
+                    TimeZones.NewYork,
+                    false,
+                    false,
+                    false
+                ),
+                SymbolProperties.GetDefault(Currencies.USD),
+                ErrorCurrencyConverter.Instance,
+                RegisteredSecurityDataTypesProvider.Null
+            );
+            SecurityPortfolioModel model = new SecurityPortfolioModel();
+            
+            security.FeeModel = new KrakenFeeModel();
+            var securities = new SecurityManager(new TimeKeeper(DateTime.UtcNow, TimeZones.NewYork))
+            {
+                {Symbol, security}
+            };
+            var brokerage = (KrakenBrokerage) Brokerage;
+            security.Update(new []{ brokerage.GetTick(Symbol)}, typeof(Tick));
+            var transactions = new SecurityTransactionManager(null, securities);
+            transactions.SetOrderProcessor(new FakeOrderProcessor());
+
+            var portfolio = new SecurityPortfolioManager(securities, transactions);
+            portfolio.CashBook["ETH"] = new Cash("ETH", 0.1m, 1);
+
+            var initialStateDict = new Dictionary<string, decimal>();
+            foreach (var kvp in portfolio.CashBook)
+            {
+                initialStateDict.Add(kvp.Key, kvp.Value.Amount);
+            }
+            
+            // Open
+            model.ProcessFill(portfolio, security, new OrderEvent(1, Symbol, DateTime.UtcNow, OrderStatus.Filled, OrderDirection.Buy, security.Price, 0.01m, OrderFee.Zero));
+            
+            // Close
+            model.ProcessFill(portfolio, security, new OrderEvent(2, Symbol, DateTime.UtcNow, OrderStatus.Filled, OrderDirection.Sell, security.Price, -0.01m, OrderFee.Zero));
+
+            foreach (var kvp in portfolio.CashBook)
+            {
+                var amount = initialStateDict[kvp.Key];
+                Assert.AreEqual(amount, kvp.Value.Amount);
+            }
+        }
+
     }
 }
