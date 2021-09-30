@@ -17,7 +17,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
-using System.Timers;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using QuantConnect.Brokerages.Kraken.Models;
@@ -411,6 +410,14 @@ namespace QuantConnect.Brokerages.Kraken
             }
         }
 
+        /// <summary>
+        /// Method to retrieve minute+ resolution TradeBars
+        /// </summary>
+        /// <param name="request"><see cref="HistoryRequest"/></param>
+        /// <param name="marketSymbol">Symbol name like in brokerage</param>
+        /// <param name="period">period for <see cref="TradeBar"/></param>
+        /// <returns>List of <see cref="TradeBar"/></returns>
+        /// <exception cref="Exception">Kraken api exception</exception>
         private IEnumerable<BaseData> GetOhlcBars(HistoryRequest request, string marketSymbol, TimeSpan period)
         {
             var resolution = ConvertResolution(request.Resolution);
@@ -474,6 +481,13 @@ namespace QuantConnect.Brokerages.Kraken
             }
         }
         
+        /// <summary>
+        /// Method to retrieve tick resolution TradeBars
+        /// </summary>
+        /// <param name="request"><see cref="HistoryRequest"/></param>
+        /// <param name="marketSymbol">Symbol name like in brokerage</param>
+        /// <returns>List of <see cref="TradeBar"/></returns>
+        /// <exception cref="Exception">Kraken api exception</exception>
         private IEnumerable<BaseData> GetTradeBars(HistoryRequest request, string marketSymbol)
         {
             var url = $"/0/public/Trades?pair={marketSymbol}";
@@ -542,7 +556,14 @@ namespace QuantConnect.Brokerages.Kraken
             }
         }
         
-
+        /// <summary>
+        /// Wrapper to all request logic 
+        /// </summary>
+        /// <param name="query">Api path</param>
+        /// <param name="requestBody">Body of the request</param>
+        /// <param name="method">Api method</param>
+        /// <param name="isPrivate">Does need authentication</param>
+        /// <returns><see cref="IRestResponse"/> for request</returns>
         private IRestResponse MakeRequest(string query, IDictionary<string, object> requestBody = null, Method method = Method.GET, bool isPrivate = false)
         {
             Dictionary<string, string> headers = null;

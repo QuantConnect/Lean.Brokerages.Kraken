@@ -12,6 +12,8 @@ namespace QuantConnect.Brokerages.Kraken
     /// </summary>
     public class KrakenBrokerageRateLimits
     {
+        public decimal RateLimitCounter { get; set; }
+        
         private readonly Dictionary<KrakenRateLimitType, decimal> _rateLimitsDictionary = new ()
         {
             {KrakenRateLimitType.Common, 15},
@@ -25,8 +27,6 @@ namespace QuantConnect.Brokerages.Kraken
             {KrakenRateLimitType.Cancel, 1m},
         };
 
-        public decimal RateLimitCounter { get; set; }
-
         private readonly Timer _1sRateLimitTimer = new Timer(1000);
         
         private Dictionary<string, int> RateLimitsOrderPerSymbolDictionary { get; set; }
@@ -35,6 +35,10 @@ namespace QuantConnect.Brokerages.Kraken
         // specify very big number of occurrences, because we will estimate it by ourselves. Will be used only for cooldown
         private readonly RateGate _restRateLimiter = new RateGate(1, TimeSpan.FromSeconds(20));
         
+        /// <summary>
+        /// Choosing right rate limits based on verification tier
+        /// </summary>
+        /// <param name="verificationTier">Starter, Intermediate, Pro</param>
         public KrakenBrokerageRateLimits(string verificationTier)
         {
             RateLimitsOrderPerSymbolDictionary = new Dictionary<string, int>();

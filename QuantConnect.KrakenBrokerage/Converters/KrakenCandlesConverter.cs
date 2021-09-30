@@ -33,6 +33,7 @@ namespace QuantConnect.Brokerages.Kraken.Converters
         /// <returns>The object value.</returns>
         public override object ReadJson(JsonReader reader, Type objectType, object existingValue, JsonSerializer serializer)
         {
+            reader.FloatParseHandling = FloatParseHandling.Decimal;
             var array = JArray.Load(reader);
 
             return new KrakenCandle

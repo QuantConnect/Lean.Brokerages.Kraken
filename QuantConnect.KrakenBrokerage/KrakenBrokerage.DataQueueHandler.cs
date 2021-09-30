@@ -23,7 +23,7 @@ namespace QuantConnect.Brokerages.Kraken
         public readonly object TickLocker = new object();
 
         /// <summary>
-        /// Token needs to have access to auth wss. Initialized in SubscribeAuth
+        /// Need Token to have access to auth wss
         /// </summary>
         private string WebsocketToken { get; set; }
         

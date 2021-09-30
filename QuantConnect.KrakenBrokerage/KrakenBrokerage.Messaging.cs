@@ -18,8 +18,8 @@ namespace QuantConnect.Brokerages.Kraken
         /// <summary>
         /// Private message parser
         /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
+        /// <param name="sender">Sender</param>
+        /// <param name="e"><see cref="WebSocketMessage"/> message</param>
         public override void OnMessage(object sender, WebSocketMessage e)
         {
             var data = (WebSocketClientWrapper.TextMessage) e.Data;

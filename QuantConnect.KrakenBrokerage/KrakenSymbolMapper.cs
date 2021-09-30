@@ -28,8 +28,13 @@ namespace QuantConnect.Brokerages.Kraken
     {
         private readonly Dictionary<Symbol, SymbolProperties> _symbolPropertiesMap;
         
+        // map from SymbolPropertiesDb
         private readonly Dictionary<string, Symbol> _symbolMap;
+        
+        // Generated map for open orders symbol, to have O(1) access
         private readonly Dictionary<string, Symbol> _openOrdersSymbolMap;
+        
+        // Generated map for websocket symbols, to have O(1) access
         private readonly Dictionary<string, Symbol> _wsSymbolMap;
 
         private Dictionary<string, string> _currencyMap => new Dictionary<string, string>
@@ -230,12 +235,12 @@ namespace QuantConnect.Brokerages.Kraken
         /// </summary>
         /// <param name="marketCurrency">Kraken currency</param>
         /// <returns>Lean currency</returns>
-        /// <exception cref="ArgumentException">Unknown Kraken currency</exception>
         public string ConvertCurrency(string marketCurrency)
         {
             if (!_currencyMap.TryGetValue(marketCurrency, out var symbol))
             {
-                throw new ArgumentException($"Unknown currency: {marketCurrency}/{SecurityType.Crypto}/{Market.Kraken}");
+                // Lean currency the same with Kraken one
+                return marketCurrency;
             }
 
             return symbol;

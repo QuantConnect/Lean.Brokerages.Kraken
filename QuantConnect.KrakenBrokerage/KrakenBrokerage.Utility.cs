@@ -19,7 +19,7 @@ namespace QuantConnect.Brokerages.Kraken
         /// </summary>
         /// <param name="symbol">Kraken <see cref="Symbol"/></param>
         /// <returns><see cref="Tick"/></returns>
-        /// <exception cref="Exception"></exception>
+        /// <exception cref="Exception">Kraken api exception</exception>
         public Tick GetTick(Symbol symbol)
         {
             var marketSymbol = _symbolMapper.GetBrokerageSymbol(symbol);
@@ -58,7 +58,7 @@ namespace QuantConnect.Brokerages.Kraken
         /// <summary>
         /// Create sign to enter private rest info
         /// </summary>
-        /// <param name="path">api path</param>
+        /// <param name="path">Api path</param>
         /// <param name="nonce">Unix timestamp</param>
         /// <param name="body">UrlEncoded body</param>
         /// <returns></returns>
@@ -83,21 +83,14 @@ namespace QuantConnect.Brokerages.Kraken
             return header;
         }
 
-        private OrderStatus GetOrderStatus(string status) => status switch
-        {
-            "pending" => OrderStatus.New,
-            "open" => OrderStatus.Submitted,
-            "closed" => OrderStatus.Filled,
-            "expired" => OrderStatus.Canceled,
-            "canceled" => OrderStatus.Canceled,
-            _ => OrderStatus.None
-        };
-
-        private static string BuildUrlEncode(IDictionary<string, object> args) => string.Join(
-            "&",
-            args.Where(x => x.Value != null).Select(x => x.Key + "=" + x.Value)
-        );
-
+        /// <summary>
+        /// Request builder
+        /// </summary>
+        /// <param name="query">Api path</param>
+        /// <param name="headers">Headers of request</param>
+        /// <param name="requestBody">Body of request</param>
+        /// <param name="method">Request method</param>
+        /// <returns><see cref="IRestRequest"/></returns>
         private IRestRequest CreateRequest(string query, Dictionary<string, string> headers = null, IDictionary<string, object> requestBody = null, Method method = Method.GET)
         {
             RestRequest request = new RestRequest(query) {Method = method};
@@ -125,5 +118,21 @@ namespace QuantConnect.Brokerages.Kraken
             Resolution.Daily => "1440",
             _ => "1"
         };
+        
+        
+        private OrderStatus GetOrderStatus(string status) => status switch
+        {
+            "pending" => OrderStatus.New,
+            "open" => OrderStatus.Submitted,
+            "closed" => OrderStatus.Filled,
+            "expired" => OrderStatus.Canceled,
+            "canceled" => OrderStatus.Canceled,
+            _ => OrderStatus.None
+        };
+
+        private static string BuildUrlEncode(IDictionary<string, object> args) => string.Join(
+            "&",
+            args.Where(x => x.Value != null).Select(x => x.Key + "=" + x.Value)
+        );
     }
 }
