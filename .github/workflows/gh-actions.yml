@@ -16,10 +16,10 @@ jobs:
       - uses: actions/checkout@v2
 
       - name: Initialize environmental variables
-        run: echo "Initialize environmental variables!"
         env:
           KRAKEN_PUBLIC: ${{ secrets.KRAKEN_PUBLIC }}
           KRAKEN_PRIVATE: ${{ secrets.KRAKEN_PRIVATE }}
+        run: $KRAKEN_PUBLIC | base64 -d > $RUNNER_TEMP/my_production.keystore
 
       - name: Checkout Lean Same Branch
         id: lean-same-branch
