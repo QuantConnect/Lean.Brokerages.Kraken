@@ -4,22 +4,17 @@ on:
   push:
     branches: ['*']
     tags: ['*']
-  pull_request:
-    branches: [master]
 
 jobs:
   build:
     runs-on: ubuntu-20.04
+    env:
+        KRAKEN_PUBLIC: ${{ secrets.KRAKEN_PUBLIC }}
+        KRAKEN_PRIVATE: ${{ secrets.KRAKEN_PRIVATE }}
     container:
         image: quantconnect/lean:foundation
     steps:
       - uses: actions/checkout@v2
-
-      - name: Initialize environmental variables
-        env:
-          KRAKEN_PUBLIC: ${{ secrets.KRAKEN_PUBLIC }}
-          KRAKEN_PRIVATE: ${{ secrets.KRAKEN_PRIVATE }}
-        run: env
 
       - name: Checkout Lean Same Branch
         id: lean-same-branch
