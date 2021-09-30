@@ -15,7 +15,8 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      - name: My first action
+      - name: Initialize environmental variables
+        run: echo "Initialize environmental variables!"
         env:
           KRAKEN_PUBLIC: ${{ secrets.KRAKEN_PUBLIC }}
           KRAKEN_PRIVATE: ${{ secrets.KRAKEN_PRIVATE }}
