@@ -41,6 +41,10 @@ namespace QuantConnect.Tests.Brokerages.Kraken
         protected override IBrokerage CreateBrokerage(IOrderProvider orderProvider, ISecurityProvider securityProvider)
         {
             var environment = Environment.GetEnvironmentVariables();
+            foreach (var ob in environment)
+            {
+                Log.Error($"{ob}");
+            }
             
             var securities = new SecurityManager(new TimeKeeper(DateTime.UtcNow, TimeZones.NewYork))
             {
