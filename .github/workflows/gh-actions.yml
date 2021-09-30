@@ -15,6 +15,11 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
+      - name: My first action
+        env:
+          KRAKEN_PUBLIC: ${{ secrets.KRAKEN_PUBLIC }}
+          KRAKEN_PRIVATE: ${{ secrets.KRAKEN_PRIVATE }}
+
       - name: Checkout Lean Same Branch
         id: lean-same-branch
         uses: actions/checkout@v2
