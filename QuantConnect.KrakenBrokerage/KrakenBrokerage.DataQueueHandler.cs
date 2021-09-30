@@ -346,19 +346,11 @@ namespace QuantConnect.Brokerages.Kraken
         /// Get websocket token. Needs when subscribing to private feeds 
         /// </summary>
         /// <returns></returns>
-        /// <exception cref="Exception"></exception>
         private string GetWebsocketToken()
         {
             var query = "/0/private/GetWebSocketsToken";
 
-            var response = MakeRequest(query, method:Method.POST, isPrivate: true);
-
-            if (response.StatusCode != HttpStatusCode.OK)
-            {
-                throw new Exception($"KrakenBrokerage.GetCashBalance: request failed: [{(int) response.StatusCode}] {response.StatusDescription}, Content: {response.Content}, ErrorMessage: {response.ErrorMessage}");
-            }
-
-            var token = JToken.Parse(response.Content);
+            var token = MakeRequest(query, "GetWebsocketToken", method: Method.POST, isPrivate: true);
 
             return token["result"]["token"].ToString();
         }

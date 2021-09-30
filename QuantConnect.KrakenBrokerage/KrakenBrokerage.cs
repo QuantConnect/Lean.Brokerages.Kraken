@@ -110,19 +110,11 @@ namespace QuantConnect.Brokerages.Kraken
         /// Gets all Kraken orders not yet closed
         /// </summary>
         /// <returns>list of <see cref="Order"/></returns>
-        /// <exception cref="Exception">Kraken api exception</exception>
         public override List<Order> GetOpenOrders()
         {
             string query = "/0/private/OpenOrders";
             
-            var response = MakeRequest(query, method:Method.POST, isPrivate: true);
-            
-            if (response.StatusCode != HttpStatusCode.OK)
-            {
-                throw new Exception($"KrakenBrokerage.GetOpenOrders: request failed: [{(int)response.StatusCode}] {response.StatusDescription}, Content: {response.Content}, ErrorMessage: {response.ErrorMessage}");
-            }
-
-            var token = JToken.Parse(response.Content);
+            var token = MakeRequest(query, "GetOpenOrders", method:Method.POST, isPrivate: true);
             
             List<Order> list = new List<Order>();
             foreach (JProperty item in token["result"]["open"].Children())
@@ -223,7 +215,6 @@ namespace QuantConnect.Brokerages.Kraken
         /// Get Kraken Holdings
         /// </summary>
         /// <returns>list of <see cref="Holding"/></returns>
-        /// <exception cref="Exception">Kraken api exception</exception>
         public override List<Holding> GetAccountHoldings()
         {
             if (_algorithm.BrokerageModel.AccountType == AccountType.Cash)
@@ -237,14 +228,7 @@ namespace QuantConnect.Brokerages.Kraken
             };
             var query = "/0/private/OpenPositions";
 
-            var response = MakeRequest(query, param, Method.POST, true);
-            
-            if (response.StatusCode != HttpStatusCode.OK)
-            {
-                throw new Exception($"KrakenBrokerage.GetAccountHoldings: request failed: [{(int)response.StatusCode}] {response.StatusDescription}, Content: {response.Content}, ErrorMessage: {response.ErrorMessage}");
-            }
-
-            var token = JToken.Parse(response.Content);
+            var token = MakeRequest(query, "GetAccountHoldings", param, Method.POST, true);
 
             var holdings = new List<Holding>();
 
@@ -278,19 +262,11 @@ namespace QuantConnect.Brokerages.Kraken
         /// Get Kraken Balances
         /// </summary>
         /// <returns>list of <see cref="CashAmount"/></returns>
-        /// <exception cref="Exception">Kraken api exception</exception>
         public override List<CashAmount> GetCashBalance()
         {
             string query = "/0/private/Balance";
             
-            var response = MakeRequest(query,  method:Method.POST, isPrivate: true);
-            
-            if (response.StatusCode != HttpStatusCode.OK)
-            {
-                throw new Exception($"KrakenBrokerage.GetCashBalance: request failed: [{(int)response.StatusCode}] {response.StatusDescription}, Content: {response.Content}, ErrorMessage: {response.ErrorMessage}");
-            }
-
-            var token = JToken.Parse(response.Content);
+            var token = MakeRequest(query, "GetCashBalance", method:Method.POST, isPrivate: true);
 
             var cash = new List<CashAmount>();
 
@@ -301,7 +277,39 @@ namespace QuantConnect.Brokerages.Kraken
                 cash.Add(new CashAmount(balance.Value, _symbolMapper.ConvertCurrency(balance.Key)));
             }
 
-            return cash;
+            var balances = cash.ToDictionary(x => x.Currency);
+            
+            if (_algorithm.BrokerageModel.AccountType == AccountType.Margin)
+            {
+                foreach (var holding in GetAccountHoldings())
+                {
+                    CurrencyPairUtil.DecomposeCurrencyPair(holding.Symbol, out var @base, out var quote);
+                    
+                    // Kraken margin balances logic
+                    // Before position opened I had 80.397 USD, 0.047 ETH balances
+                    // I opened position for 5 Usd, it's ~0.004 Eth. And balances remain 80.397 USD, 0.047 ETH.
+                    // Then I closed positions(it was with negative pnl) and balances became 80.1 USD, 0.047 ETH.
+                    
+                    // Lean balances logic
+                    // Before the position opened I had 100 USD, 0.1 ETH
+                    // I opened the position for 0.01 Eth. And balances became 70 USD, 0.11 ETH.
+                    // Then I closed positions(without pnl and fees) and balances became 100 USD, 0.1 ETH again.
+                    
+                    var baseQuantity = holding.Quantity; // add Base holding to balance
+                    
+                    balances[@base] = balances.TryGetValue(@base, out var baseCurrencyAmount)
+                        ? new CashAmount(baseQuantity + baseCurrencyAmount.Amount, @base)
+                        : new CashAmount(baseQuantity, @base);
+
+                    var quoteQuantity = -holding.Quantity * holding.AveragePrice; // substract quote holding value from balance
+                    
+                    balances[quote] = balances.TryGetValue(quote, out var quoteCurrencyAmount)
+                        ? new CashAmount(quoteQuantity + quoteCurrencyAmount.Amount, quote)
+                        : new CashAmount(quoteQuantity, quote);
+                }
+            }
+
+            return balances.Values.ToList();
         }
 
         /// <summary>
@@ -417,7 +425,6 @@ namespace QuantConnect.Brokerages.Kraken
         /// <param name="marketSymbol">Symbol name like in brokerage</param>
         /// <param name="period">period for <see cref="TradeBar"/></param>
         /// <returns>List of <see cref="TradeBar"/></returns>
-        /// <exception cref="Exception">Kraken api exception</exception>
         private IEnumerable<BaseData> GetOhlcBars(HistoryRequest request, string marketSymbol, TimeSpan period)
         {
             var resolution = ConvertResolution(request.Resolution);
@@ -430,14 +437,8 @@ namespace QuantConnect.Brokerages.Kraken
             {
                 var timeframe = $"&since={start}";
 
-                var response = MakeRequest(url + timeframe);
-
-                if (response.StatusCode != HttpStatusCode.OK)
-                {
-                    throw new Exception($"KrakenBrokerage.GetOhlcHistory: request failed: [{(int) response.StatusCode}] {response.StatusDescription}, Content: {response.Content}, ErrorMessage: {response.ErrorMessage}");
-                }
-
-                var token = JToken.Parse(response.Content);
+                var token = MakeRequest(url + timeframe, "GetOhlcBars");
+                
                 var candlesList = token["result"][marketSymbol].ToObject<List<KrakenCandle>>();
 
                 if (candlesList.Count > 0)
@@ -487,7 +488,6 @@ namespace QuantConnect.Brokerages.Kraken
         /// <param name="request"><see cref="HistoryRequest"/></param>
         /// <param name="marketSymbol">Symbol name like in brokerage</param>
         /// <returns>List of <see cref="TradeBar"/></returns>
-        /// <exception cref="Exception">Kraken api exception</exception>
         private IEnumerable<BaseData> GetTradeBars(HistoryRequest request, string marketSymbol)
         {
             var url = $"/0/public/Trades?pair={marketSymbol}";
@@ -499,14 +499,7 @@ namespace QuantConnect.Brokerages.Kraken
             {
                 var timeframe = $"&since={start}";
 
-                var response = MakeRequest(url + timeframe);
-
-                if (response.StatusCode != HttpStatusCode.OK)
-                {
-                    throw new Exception($"KrakenBrokerage.GetTradeHistory: request failed: [{(int) response.StatusCode}] {response.StatusDescription}, Content: {response.Content}, ErrorMessage: {response.ErrorMessage}");
-                }
-
-                var token = JToken.Parse(response.Content);
+                var token =  MakeRequest(url + timeframe, "GetTradeBars");
                 var tradesList = token["result"][marketSymbol].ToObject<List<KrakenTrade>>();
 
                 if (tradesList.Count > 0)
@@ -555,16 +548,18 @@ namespace QuantConnect.Brokerages.Kraken
                 }
             }
         }
-        
+
         /// <summary>
         /// Wrapper to all request logic 
         /// </summary>
         /// <param name="query">Api path</param>
+        /// <param name="methodCaller">Method that calls request</param>
         /// <param name="requestBody">Body of the request</param>
         /// <param name="method">Api method</param>
         /// <param name="isPrivate">Does need authentication</param>
         /// <returns><see cref="IRestResponse"/> for request</returns>
-        private IRestResponse MakeRequest(string query, IDictionary<string, object> requestBody = null, Method method = Method.GET, bool isPrivate = false)
+        /// <exception cref="Exception">Kraken api exception</exception>
+        private JToken MakeRequest(string query, string methodCaller, IDictionary<string, object> requestBody = null, Method method = Method.GET, bool isPrivate = false)
         {
             Dictionary<string, string> headers = null;
             if (isPrivate)
@@ -579,8 +574,22 @@ namespace QuantConnect.Brokerages.Kraken
             }
 
             var request = CreateRequest(query, headers, requestBody, method);
+            
+            var response = ExecuteRestRequest(request);
 
-            return ExecuteRestRequest(request);
+            var token = JToken.Parse(response.Content);
+            
+            if (response.StatusCode != HttpStatusCode.OK)
+            {
+                throw new Exception($"KrakenBrokerage.{methodCaller}: request failed: [{(int) response.StatusCode}] {response.StatusDescription}, Content: {response.Content}, ErrorMessage: {response.ErrorMessage}");
+            }
+            
+            if (response.StatusCode == HttpStatusCode.OK && token["error"].HasValues)
+            {
+                throw new Exception($"KrakenBrokerage.{methodCaller}: request failed: {token["error"]}");
+            }
+
+            return token;
         }
 
 

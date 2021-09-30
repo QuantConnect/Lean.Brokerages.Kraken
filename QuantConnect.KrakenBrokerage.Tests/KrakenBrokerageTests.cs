@@ -41,16 +41,12 @@ namespace QuantConnect.Tests.Brokerages.Kraken
         protected override IBrokerage CreateBrokerage(IOrderProvider orderProvider, ISecurityProvider securityProvider)
         {
             var environment = Environment.GetEnvironmentVariables();
-            foreach (var ob in environment.Keys)
-            {
-                Log.Error($"{ob}", true);
-            }
-            
+
             var securities = new SecurityManager(new TimeKeeper(DateTime.UtcNow, TimeZones.NewYork))
             {
                 {Symbol, CreateSecurity(Symbol)}
             };
-
+            
             var transactions = new SecurityTransactionManager(null, securities);
             transactions.SetOrderProcessor(new FakeOrderProcessor());
 
@@ -191,34 +187,7 @@ namespace QuantConnect.Tests.Brokerages.Kraken
         [Test]
         public void OpenClosePositionTest()
         {
-            var security = new Crypto( 
-                SecurityExchangeHours.AlwaysOpen(TimeZones.NewYork),
-                new Cash(Currencies.USD, 100, 1m),
-                new SubscriptionDataConfig(
-                    typeof(TradeBar),
-                    Symbol,
-                    Resolution.Minute,
-                    TimeZones.NewYork,
-                    TimeZones.NewYork,
-                    false,
-                    false,
-                    false
-                ),
-                SymbolProperties.GetDefault(Currencies.USD),
-                ErrorCurrencyConverter.Instance,
-                RegisteredSecurityDataTypesProvider.Null
-            );
-
-            security.BuyingPowerModel = new SecurityMarginModel(2);
-            SecurityPortfolioModel model = new SecurityPortfolioModel();
-            
-            security.FeeModel = new KrakenFeeModel();
-            var securities = new SecurityManager(new TimeKeeper(DateTime.UtcNow, TimeZones.NewYork))
-            {
-                {Symbol, security}
-            };
-            var brokerage = (KrakenBrokerage) Brokerage;
-            security.Update(new []{ brokerage.GetTick(Symbol)}, typeof(Tick));
+            var security = SecurityInit(out var model, out var securities);
             var transactions = new SecurityTransactionManager(null, securities);
             transactions.SetOrderProcessor(new FakeOrderProcessor());
 
@@ -249,6 +218,78 @@ namespace QuantConnect.Tests.Brokerages.Kraken
                 Assert.AreEqual(amount, kvp.Value.Amount);
             }
         }
+        
+        [Test]
+        public void ClosePositionTest()
+        {
+            var security = SecurityInit(out var model, out var securities);
 
+            var holding = new Holding
+            {
+                Quantity = 0.1m,
+                AveragePrice = security.Price,
+                Symbol = security.Symbol,
+                MarketPrice = security.Price,
+                CurrencySymbol = security.QuoteCurrency.CurrencySymbol,
+                MarketValue = 0.1m * security.Price,
+                UnrealizedPnL = 0
+            };
+            
+            security.Holdings.SetHoldings(holding.AveragePrice, holding.Quantity);
+
+            var transactions = new SecurityTransactionManager(null, securities);
+            transactions.SetOrderProcessor(new FakeOrderProcessor());
+
+            var portfolio = new SecurityPortfolioManager(securities, transactions);
+            portfolio.CashBook["ETH"] = new Cash("ETH", 0.1m, 1);
+
+            var initialStateDict = new Dictionary<string, decimal>();
+            foreach (var kvp in portfolio.CashBook)
+            {
+                initialStateDict.Add(kvp.Key, kvp.Value.Amount);
+            }
+
+            // Close
+            model.ProcessFill(portfolio, security, new OrderEvent(2, Symbol, DateTime.UtcNow, OrderStatus.Filled, OrderDirection.Sell, security.Price, -0.1m, OrderFee.Zero));
+
+            foreach (var kvp in portfolio.CashBook)
+            {
+                var amount = initialStateDict[kvp.Key];
+                Assert.AreNotEqual(amount, kvp.Value.Amount);
+            }
+        }
+
+        private Crypto SecurityInit(out SecurityPortfolioModel model, out SecurityManager securities)
+        {
+            var security = new Crypto(
+                SecurityExchangeHours.AlwaysOpen(TimeZones.NewYork),
+                new Cash(Currencies.USD, 100, 1m),
+                new SubscriptionDataConfig(
+                    typeof(TradeBar),
+                    Symbol,
+                    Resolution.Minute,
+                    TimeZones.NewYork,
+                    TimeZones.NewYork,
+                    false,
+                    false,
+                    false
+                ),
+                SymbolProperties.GetDefault(Currencies.USD),
+                ErrorCurrencyConverter.Instance,
+                RegisteredSecurityDataTypesProvider.Null
+            );
+
+            security.BuyingPowerModel = new SecurityMarginModel(2);
+            model = new SecurityPortfolioModel();
+
+            security.FeeModel = new KrakenFeeModel();
+            securities = new SecurityManager(new TimeKeeper(DateTime.UtcNow, TimeZones.NewYork))
+            {
+                {Symbol, security}
+            };
+            var brokerage = (KrakenBrokerage) Brokerage;
+            security.Update(new[] {brokerage.GetTick(Symbol)}, typeof(Tick));
+            return security;
+        }
     }
 }
