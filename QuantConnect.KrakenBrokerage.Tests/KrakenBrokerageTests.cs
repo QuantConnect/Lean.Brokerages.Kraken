@@ -88,27 +88,27 @@ namespace QuantConnect.Tests.Brokerages.Kraken
         public static TestCaseData[] OrderParameters => new[]
         {
             new TestCaseData(new MarketOrderTestParameters(StaticSymbol)).SetName("MarketOrder"),
-            new TestCaseData(new LimitOrderTestParameters(StaticSymbol, 5000, 100)).SetName("LimitOrder"),
-            new TestCaseData(new StopLimitOrderTestParameters(StaticSymbol, 5000, 100)).SetName("StopLimitOrder"),
-            new TestCaseData(new StopMarketOrderTestParameters(StaticSymbol, 5000, 100)).SetName("StopMarketOrder"),
-            new TestCaseData(new LimitIfTouchedOrderTestParameters(StaticSymbol, 5000, 100)).SetName("LimitIfTouchedOrder"),
+            new TestCaseData(new LimitOrderTestParameters(StaticSymbol, 70000, 30000)).SetName("LimitOrder"),
+            new TestCaseData(new StopLimitOrderTestParameters(StaticSymbol, 70000, 30000)).SetName("StopLimitOrder"),
+            new TestCaseData(new StopMarketOrderTestParameters(StaticSymbol, 70000, 30000)).SetName("StopMarketOrder"),
+            new TestCaseData(new LimitIfTouchedOrderTestParameters(StaticSymbol, 70000, 30000)).SetName("LimitIfTouchedOrder"),
         };
 
         public static TestCaseData[] NonUpdatableOrderParameters => new[]
         {
             new TestCaseData(new MarketOrderTestParameters(StaticSymbol)).SetName("MarketOrder"),
-            new TestCaseData(new NonUpdateableLimitOrderTestParameters(StaticSymbol, 5000, 100)).SetName("LimitOrder"),
-            new TestCaseData(new NonUpdateableStopLimitOrderTestParameters(StaticSymbol, 5000, 100)).SetName("StopLimitOrder"),
-            new TestCaseData(new NonUpdateableStopMarketOrderTestParameters(StaticSymbol, 5000, 100)).SetName("StopMarketOrder"),
-            new TestCaseData(new NonUpdateableLimitIfTouchedOrderTestParameters(StaticSymbol, 5000, 100)).SetName("LimitIfTouchedOrder")
+            new TestCaseData(new NonUpdateableLimitOrderTestParameters(StaticSymbol, 70000, 30000)).SetName("LimitOrder"),
+            new TestCaseData(new NonUpdateableStopLimitOrderTestParameters(StaticSymbol, 70000, 30000)).SetName("StopLimitOrder"),
+            new TestCaseData(new NonUpdateableStopMarketOrderTestParameters(StaticSymbol, 70000, 30000)).SetName("StopMarketOrder"),
+            new TestCaseData(new NonUpdateableLimitIfTouchedOrderTestParameters(StaticSymbol, 70000, 30000)).SetName("LimitIfTouchedOrder")
         };
         
         public static TestCaseData[] CancelOrderParameters => new[] // without market
         {
-            new TestCaseData(new LimitOrderTestParameters(StaticSymbol, 5000, 100)).SetName("LimitOrder"),
-            new TestCaseData(new StopLimitOrderTestParameters(StaticSymbol, 5000, 100)).SetName("StopLimitOrder"),
-            new TestCaseData(new StopMarketOrderTestParameters(StaticSymbol, 5000, 100)).SetName("StopMarketOrder"),
-            new TestCaseData(new LimitIfTouchedOrderTestParameters(StaticSymbol, 5000, 100)).SetName("LimitIfTouchedOrder"),
+            new TestCaseData(new LimitOrderTestParameters(StaticSymbol, 70000, 30000)).SetName("LimitOrder"),
+            new TestCaseData(new StopLimitOrderTestParameters(StaticSymbol, 70000, 30000)).SetName("StopLimitOrder"),
+            new TestCaseData(new StopMarketOrderTestParameters(StaticSymbol, 70000, 30000)).SetName("StopMarketOrder"),
+            new TestCaseData(new LimitIfTouchedOrderTestParameters(StaticSymbol, 70000, 30000)).SetName("LimitIfTouchedOrder"),
         };
         
         protected override SecurityType SecurityType => SecurityType.Crypto;
