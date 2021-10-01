@@ -83,7 +83,7 @@ namespace QuantConnect.Tests.Brokerages.Kraken
 
         protected override Symbol Symbol => StaticSymbol;
 
-        private static Symbol StaticSymbol => Symbol.Create("ETHUSD", SecurityType.Crypto, Market.Kraken);
+        private static Symbol StaticSymbol => Symbol.Create("BTCUSD", SecurityType.Crypto, Market.Kraken);
 
         public static TestCaseData[] OrderParameters => new[]
         {
@@ -124,7 +124,7 @@ namespace QuantConnect.Tests.Brokerages.Kraken
             return tick.AskPrice;
         }
 
-        protected override decimal GetDefaultQuantity() => 0.004m; // ETH order minimum
+        protected override decimal GetDefaultQuantity() => SymbolPropertiesDatabase.FromDataFolder().GetSymbolProperties(Market.Kraken, Symbol, Symbol.SecurityType, Currencies.USD).MinimumOrderSize.Value; // Take order minimum
 
         [Test, TestCaseSource(nameof(CancelOrderParameters))]
         public override void CancelOrders(OrderTestParameters parameters)
@@ -192,7 +192,7 @@ namespace QuantConnect.Tests.Brokerages.Kraken
             transactions.SetOrderProcessor(new FakeOrderProcessor());
 
             var portfolio = new SecurityPortfolioManager(securities, transactions);
-            portfolio.CashBook["ETH"] = new Cash("ETH", 0.1m, 1);
+            portfolio.CashBook["BTC"] = new Cash("BTC", 0.1m, 1);
 
             var initialStateDict = new Dictionary<string, decimal>();
             foreach (var kvp in portfolio.CashBook)
@@ -241,7 +241,7 @@ namespace QuantConnect.Tests.Brokerages.Kraken
             transactions.SetOrderProcessor(new FakeOrderProcessor());
 
             var portfolio = new SecurityPortfolioManager(securities, transactions);
-            portfolio.CashBook["ETH"] = new Cash("ETH", 0.1m, 1);
+            portfolio.CashBook["BTC"] = new Cash("BTC", 0.1m, 1);
 
             var initialStateDict = new Dictionary<string, decimal>();
             foreach (var kvp in portfolio.CashBook)

@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using NUnit.Framework;
 using QuantConnect.Brokerages;
 using QuantConnect.Brokerages.Kraken;
+using QuantConnect.Logging;
 
 namespace QuantConnect.Tests.Brokerages.Kraken
 {
@@ -13,6 +14,10 @@ namespace QuantConnect.Tests.Brokerages.Kraken
         [TestCaseSource(nameof(RestLimits))]
         public void RestRateLimitTest(string tier, int requestNumber, bool shouldExceed)
         {
+            Log.Trace("");
+            Log.Trace("Rest Rate Limit test");
+            Log.Trace("");
+            
             var rateLimiter = new KrakenBrokerageRateLimits(tier);
             var watch = System.Diagnostics.Stopwatch.StartNew();
             
@@ -37,6 +42,9 @@ namespace QuantConnect.Tests.Brokerages.Kraken
         [TestCaseSource(nameof(OrderLimits))]
         public void OrderLimitTest(string tier, int requestNumber, bool shouldThrow)
         {
+            Log.Trace("");
+            Log.Trace("Order Limit test");
+            Log.Trace("");
             var rateLimiter = new KrakenBrokerageRateLimits(tier);
 
             TestDelegate test = () =>
@@ -62,6 +70,9 @@ namespace QuantConnect.Tests.Brokerages.Kraken
         [TestCaseSource(nameof(CancelLimits))]
         public void CancelOrderLimitTest(string tier, int requestNumber, int secondsOrderPlacedAgo, bool shouldExceed)
         {
+            Log.Trace("");
+            Log.Trace("Cancel Order Limit test");
+            Log.Trace("");
             var rateLimiter = new KrakenBrokerageRateLimits(tier);
             var watch = System.Diagnostics.Stopwatch.StartNew();
             
@@ -85,6 +96,10 @@ namespace QuantConnect.Tests.Brokerages.Kraken
         [TestCaseSource(nameof(RestDecayLimits))]
         public async Task RestDecayLimitTest(string tier, int decaySeconds, decimal multiplier)
         {
+            Log.Trace("");
+            Log.Trace("Rest Decay Limit test");
+            Log.Trace("");
+            
             var rateLimiter = new KrakenBrokerageRateLimits(tier);
 
             const int requestNumber = 15;
@@ -103,6 +118,10 @@ namespace QuantConnect.Tests.Brokerages.Kraken
         [TestCaseSource(nameof(CancelDecayLimits))]
         public async Task CancelDecayLimitTest(string tier, int decaySeconds, int requestNumber, bool shouldExceed)
         {
+            Log.Trace("");
+            Log.Trace("Cancel Decay Limit test");
+            Log.Trace("");
+            
             var rateLimiter = new KrakenBrokerageRateLimits(tier);
             
             for (int i = 0; i < requestNumber; i++)
