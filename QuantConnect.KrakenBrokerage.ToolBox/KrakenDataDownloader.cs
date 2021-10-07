@@ -41,7 +41,7 @@ namespace QuantConnect.ToolBox.KrakenDownloader
         public KrakenDataDownloader()
         {
             var tier = Config.Get("kraken-verification-tier", "Starter");
-            _brokerage = new KrakenBrokerage(null, null, tier, null, null, null);
+            _brokerage = new KrakenBrokerage(null, null, tier, 10, null, null, null);
         }
 
         /// <summary>
@@ -64,11 +64,6 @@ namespace QuantConnect.ToolBox.KrakenDownloader
                 throw new ArgumentException($"The ticker {symbol.Value} is not available in Kraken. Use Lean symbols for downloader (i.e BTCUSD, not XXBTZUSD)");
             }
 
-            if (resolution == Resolution.Second)
-            {
-                throw new ArgumentException("Kraken does not support seconds resolution.");
-            }
-            
             var historyRequest = new HistoryRequest(
                 startUtc,
                 endUtc,

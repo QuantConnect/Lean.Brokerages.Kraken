@@ -51,7 +51,7 @@ namespace QuantConnect.Brokerages.Kraken
         private const string _wsUrl = "wss://ws.kraken.com";
         private const string _wsAuthUrl = "wss://ws-auth.kraken.com";
 
-        private readonly RateGate _webSocketRateLimiter = new RateGate(1, TimeSpan.FromSeconds(5));
+        private readonly RateGate _webSocketRateLimiter = new RateGate(50, TimeSpan.FromSeconds(5));
 
         /// <summary>
         /// Constructor for brokerage
@@ -62,20 +62,21 @@ namespace QuantConnect.Brokerages.Kraken
         /// <param name="algorithm"><see cref="IAlgorithm"/> instance</param>
         /// <param name="aggregator"><see cref="IDataAggregator"/> instance</param>
         /// <param name="job">Lean <see cref="LiveNodePacket"/></param>
-        public KrakenBrokerage(string apiKey, string apiSecret,  string verificationTier, IAlgorithm algorithm, IDataAggregator aggregator, LiveNodePacket job)
+        public KrakenBrokerage(string apiKey, string apiSecret, string verificationTier, int orderBookDepth, IAlgorithm algorithm, IDataAggregator aggregator, LiveNodePacket job)
             : base(_wsAuthUrl, new KrakenWebSocketWrapper(null), new RestClient(_apiUrl), apiKey, apiSecret, "Kraken")
         {
             _algorithm = algorithm;
             _job = job;
             _aggregator = aggregator;
             _securityProvider = algorithm?.Portfolio;
-
+            _orderBookDepth = orderBookDepth;
+            
             _rateLimiter = new KrakenBrokerageRateLimits(verificationTier);
 
             SubscriptionManager = new BrokerageMultiWebSocketSubscriptionManager(
                 _wsUrl,
-                100,
-                0,
+                150,
+                10,
                 null,
                 () => new KrakenWebSocketWrapper(null),
                 Subscribe,
@@ -99,11 +100,17 @@ namespace QuantConnect.Brokerages.Kraken
             this(Config.Get("kraken-api-key"),
                 Config.Get("kraken-api-secret"),
                 Config.Get("kraken-verification-tier"),
+                Config.GetInt("kraken-orderbook-depth", 10),
                 algorithm, aggregator, job)
         {
         }
-        
-        
+
+        public override void Dispose()
+        {
+            _rateLimiter.DisposeSafely();
+            _webSocketRateLimiter.DisposeSafely();
+        }
+
         public override bool IsConnected => WebSocket.IsOpen;
 
         /// <summary>
@@ -281,9 +288,10 @@ namespace QuantConnect.Brokerages.Kraken
             
             if (_algorithm.BrokerageModel.AccountType == AccountType.Margin)
             {
-                foreach (var holding in GetAccountHoldings())
+                var holdings = GetAccountHoldings();
+                for (var i = 0; i < holdings.Count; i++)
                 {
-                    CurrencyPairUtil.DecomposeCurrencyPair(holding.Symbol, out var @base, out var quote);
+                    CurrencyPairUtil.DecomposeCurrencyPair(holdings[i].Symbol, out var @base, out var quote);
                     
                     // Kraken margin balances logic
                     // Before position opened I had 80.397 USD, 0.047 ETH balances
@@ -295,13 +303,13 @@ namespace QuantConnect.Brokerages.Kraken
                     // I opened the position for 0.01 Eth. And balances became 70 USD, 0.11 ETH.
                     // Then I closed positions(without pnl and fees) and balances became 100 USD, 0.1 ETH again.
                     
-                    var baseQuantity = holding.Quantity; // add Base holding to balance
+                    var baseQuantity = holdings[i].Quantity; // add Base holding to balance
                     
                     balances[@base] = balances.TryGetValue(@base, out var baseCurrencyAmount)
                         ? new CashAmount(baseQuantity + baseCurrencyAmount.Amount, @base)
                         : new CashAmount(baseQuantity, @base);
 
-                    var quoteQuantity = -holding.Quantity * holding.AveragePrice; // substract quote holding value from balance
+                    var quoteQuantity = -holdings[i].Quantity * holdings[i].AveragePrice; // substract quote holding value from balance
                     
                     balances[quote] = balances.TryGetValue(quote, out var quoteCurrencyAmount)
                         ? new CashAmount(quoteQuantity + quoteCurrencyAmount.Amount, quote)
@@ -319,13 +327,13 @@ namespace QuantConnect.Brokerages.Kraken
         /// <returns>Order placed or not</returns>
         public override bool PlaceOrder(Order order)
         {
-            WebsocketToken = string.IsNullOrEmpty(WebsocketToken) ? GetWebsocketToken() : WebsocketToken;
+            SetWebsocketToken();
 
-            var parameters = CreateKrakenOrder(order, out var symbol);
+            var parameters = CreateKrakenOrder(order);
 
             var json = JsonConvert.SerializeObject(parameters);
 
-            _rateLimiter.OrderRateLimitCheck(symbol);
+            _rateLimiter.OrderRateLimitCheck(order.Symbol);
             
             WebSocket.Send(json);
 
@@ -358,7 +366,7 @@ namespace QuantConnect.Brokerages.Kraken
                 return false;
             }
             
-            WebsocketToken = string.IsNullOrEmpty(WebsocketToken) ? GetWebsocketToken() : WebsocketToken;
+            SetWebsocketToken();
             var json = JsonConvert.SerializeObject(new
             {
                 @event = "cancelOrder",
@@ -453,22 +461,22 @@ namespace QuantConnect.Brokerages.Kraken
 
                     start = (long) lastValue.Time + resolutionInMs;
 
-                    foreach (var kline in candlesList)
+                    for (var i = 0; i < candlesList.Count; i++)
                     {
-                        if (kline.Time > end) // no "to" param in Kraken and it returns just 1000 candles since start timestamp
+                        if (candlesList[i].Time > end) // no "to" param in Kraken and it returns just 1000 candles since start timestamp
                         {
                             yield break;
                         }
                         yield return new TradeBar()
                         {
-                            Time = Time.UnixTimeStampToDateTime(kline.Time),
+                            Time = Time.UnixTimeStampToDateTime(candlesList[i].Time),
                             Symbol = request.Symbol,
-                            Low = kline.Low,
-                            High = kline.High,
-                            Open = kline.Open,
-                            Close = kline.Close,
-                            Volume = kline.Volume,
-                            Value = kline.Close,
+                            Low = candlesList[i].Low,
+                            High = candlesList[i].High,
+                            Open = candlesList[i].Open,
+                            Close = candlesList[i].Close,
+                            Volume = candlesList[i].Volume,
+                            Value = candlesList[i].Close,
                             DataType = MarketDataType.TradeBar,
                             Period = period
                         };
@@ -519,23 +527,23 @@ namespace QuantConnect.Brokerages.Kraken
                     
                     start = lastValue.Time;
 
-                    foreach (var kline in tradesList)
+                    for (var i = 0; i < tradesList.Count; i++)
                     {
-                        if (kline.Time > end) // no "to" param in Kraken and it returns just 1000 candles since start timestamp
+                        if (tradesList[i].Time > end) // no "to" param in Kraken and it returns just 1000 candles since start timestamp
                         {
                             yield break;
                         }
                         
                         yield return new TradeBar()
                         {
-                            Time = Time.UnixTimeStampToDateTime(kline.Time),
+                            Time = Time.UnixTimeStampToDateTime(tradesList[i].Time),
                             Symbol = request.Symbol,
-                            Low = kline.Price,
-                            High = kline.Price,
-                            Open = kline.Price,
-                            Close = kline.Price,
-                            Volume = kline.Volume,
-                            Value = kline.Price,
+                            Low = tradesList[i].Price,
+                            High = tradesList[i].Price,
+                            Open = tradesList[i].Price,
+                            Close = tradesList[i].Price,
+                            Volume = tradesList[i].Volume,
+                            Value = tradesList[i].Price,
                             DataType = MarketDataType.TradeBar,
                             Period = period
                         };

@@ -14,35 +14,11 @@
 */
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.IO;
 using QuantConnect.Configuration;
 using QuantConnect.Logging;
-using QuantConnect.ToolBox.AlgoSeekFuturesConverter;
-using QuantConnect.ToolBox.AlgoSeekOptionsConverter;
-using QuantConnect.ToolBox.BinanceDownloader;
-using QuantConnect.ToolBox.BitfinexDownloader;
-using QuantConnect.ToolBox.CoarseUniverseGenerator;
-using QuantConnect.ToolBox.CoinApiDataConverter;
-using QuantConnect.ToolBox.CryptoiqDownloader;
-using QuantConnect.ToolBox.DukascopyDownloader;
-using QuantConnect.ToolBox.GDAXDownloader;
-using QuantConnect.ToolBox.IBDownloader;
-using QuantConnect.ToolBox.IEX;
-using QuantConnect.ToolBox.IQFeedDownloader;
-using QuantConnect.ToolBox.IVolatilityEquityConverter;
-using QuantConnect.ToolBox.KaikoDataConverter;
 using QuantConnect.ToolBox.KrakenDataDownloader;
-using QuantConnect.ToolBox.NseMarketDataConverter;
-using QuantConnect.ToolBox.OandaDownloader;
-using QuantConnect.ToolBox.Polygon;
-using QuantConnect.ToolBox.QuandlBitfinexDownloader;
-using QuantConnect.ToolBox.QuantQuoteConverter;
-using QuantConnect.ToolBox.RandomDataGenerator;
-using QuantConnect.ToolBox.YahooDownloader;
 using QuantConnect.Util;
-using QuantConnect.ToolBox.ZerodhaDownloader;
-using QuantConnect.ToolBox.AlphaVantageDownloader;
 
 namespace QuantConnect.ToolBox
 {
@@ -78,79 +54,9 @@ namespace QuantConnect.ToolBox
                     : DateTime.UtcNow;
                 switch (targetApp)
                 {
-                    case "zdl":
-                    case "zerodhadownloader":
-                        ZerodhaDataDownloaderProgram.ZerodhaDataDownloader(tickers,market, resolution, securityType, fromDate, toDate);
-                        break;
-                    case "gdaxdl":
-                    case "gdaxdownloader":
-                        GDAXDownloaderProgram.GDAXDownloader(tickers, resolution, fromDate, toDate);
-                        break;
-                    case "cdl":
-                    case "cryptoiqdownloader":
-                        CryptoiqDownloaderProgram.CryptoiqDownloader(tickers, GetParameterOrExit(optionsObject, "exchange"), fromDate, toDate);
-                        break;
-                    case "ddl":
-                    case "dukascopydownloader":
-                        DukascopyDownloaderProgram.DukascopyDownloader(tickers, resolution, fromDate, toDate);
-                        break;
-                    case "ibdl":
-                    case "ibdownloader":
-                        IBDownloaderProgram.IBDownloader(tickers, resolution, fromDate, toDate);
-                        break;
-                    case "iexdl":
-                    case "iexdownloader":
-                        IEXDownloaderProgram.IEXDownloader(tickers, resolution, fromDate, toDate);
-                        break;
-                    case "iqfdl":
-                    case "iqfeeddownloader":
-                        IQFeedDownloaderProgram.IQFeedDownloader(tickers, resolution, fromDate, toDate);
-                        break;
                     case "kdl":
                     case "krakendownloader":
                         KrakenDownloaderProgram.KrakenDownloader(tickers, resolution, fromDate, toDate);
-                        break;
-                    case "odl":
-                    case "oandadownloader":
-                        OandaDownloaderProgram.OandaDownloader(tickers, resolution, fromDate, toDate);
-                        break;
-                    case "qbdl":
-                    case "quandlbitfinexdownloader":
-                        QuandlBitfinexDownloaderProgram.QuandlBitfinexDownloader(fromDate, GetParameterOrExit(optionsObject, "api-key"));
-                        break;
-                    case "ydl":
-                    case "yahoodownloader":
-                        YahooDownloaderProgram.YahooDownloader(tickers, resolution, fromDate, toDate);
-                        break;
-                    case "bfxdl":
-                    case "bitfinexdownloader":
-                        BitfinexDownloaderProgram.BitfinexDownloader(tickers, resolution, fromDate, toDate);
-                        break;
-                    case "mbxdl":
-                    case "binancedownloader":
-                        BinanceDownloaderProgram.DataDownloader(tickers, resolution, fromDate, toDate);
-                        break;
-
-                    case "pdl":
-                    case "polygondownloader":
-                        PolygonDownloaderProgram.PolygonDownloader(
-                            tickers,
-                            GetParameterOrExit(optionsObject, "security-type"),
-                            GetParameterOrExit(optionsObject, "market"),
-                            resolution, 
-                            fromDate, 
-                            toDate);
-                        break;
-
-                    case "avdl":
-                    case "alphavantagedownloader":
-                        AlphaVantageDownloaderProgram.AlphaVantageDownloader(
-                            tickers,
-                            resolution,
-                            fromDate,
-                            toDate,
-                            GetParameterOrExit(optionsObject, "api-key")
-                        );
                         break;
 
                     default:
@@ -162,88 +68,10 @@ namespace QuantConnect.ToolBox
             {
                 switch (targetApp)
                 {
-                    case "mbxspu":
-                    case "binancesymbolpropertiesupdater":
-                        BinanceDownloaderProgram.ExchangeInfoDownloader();
-                        break;
                     case "kspu":
                     case "krakensymbolpropertiesupdater":
                         KrakenDownloaderProgram.ExchangeInfoDownloader();
                         break;
-                    default:
-                        PrintMessageAndExit(1, "ERROR: Unrecognized --app value");
-                        break;
-                }
-            }
-            else
-            {
-                switch (targetApp)
-                {
-                    case "asfc":
-                    case "algoseekfuturesconverter":
-                        AlgoSeekFuturesProgram.AlgoSeekFuturesConverter(GetParameterOrExit(optionsObject, "date"));
-                        break;
-                    case "asoc":
-                    case "algoseekoptionsconverter":
-                        AlgoSeekOptionsConverterProgram.AlgoSeekOptionsConverter(GetParameterOrExit(optionsObject, "date"));
-                        break;
-                    case "ivec":
-                    case "ivolatilityequityconverter":
-                        IVolatilityEquityConverterProgram.IVolatilityEquityConverter(GetParameterOrExit(optionsObject, "source-dir"),
-                                                                                     GetParameterOrExit(optionsObject, "source-meta-dir"),
-                                                                                     GetParameterOrExit(optionsObject, "destination-dir"),
-                                                                                     GetParameterOrExit(optionsObject, "resolution"));
-                        break;
-                    case "kdc":
-                    case "kaikodataconverter":
-                        KaikoDataConverterProgram.KaikoDataConverter(GetParameterOrExit(optionsObject, "source-dir"),
-                                                                     GetParameterOrExit(optionsObject, "date"),
-                                                                     GetParameterOrDefault(optionsObject, "exchange", string.Empty));
-                        break;
-                    case "cadc":
-                    case "coinapidataconverter":
-                        CoinApiDataConverterProgram.CoinApiDataProgram(
-                            GetParameterOrExit(optionsObject, "date"), 
-                            GetParameterOrExit(optionsObject, "source-dir"), 
-                            GetParameterOrExit(optionsObject, "destination-dir"),
-                            GetParameterOrDefault(optionsObject, "market", null));
-                        break;
-                    case "nmdc":
-                    case "nsemarketdataconverter":
-                        NseMarketDataConverterProgram.NseMarketDataConverter(GetParameterOrExit(optionsObject, "source-dir"),
-                                                                             GetParameterOrExit(optionsObject, "destination-dir"));
-                        break;
-                    case "qqc":
-                    case "quantquoteconverter":
-                        QuantQuoteConverterProgram.QuantQuoteConverter(GetParameterOrExit(optionsObject, "destination-dir"),
-                                                                       GetParameterOrExit(optionsObject, "source-dir"),
-                                                                       GetParameterOrExit(optionsObject, "resolution"));
-                        break;
-                    case "cug":
-                    case "coarseuniversegenerator":
-                        CoarseUniverseGeneratorProgram.CoarseUniverseGenerator();
-                        break;
-                    case "rdg":
-                    case "randomdatagenerator":
-                        RandomDataGeneratorProgram.RandomDataGenerator(
-                            GetParameterOrExit(optionsObject, "start"),
-                            GetParameterOrExit(optionsObject, "end"),
-                            GetParameterOrExit(optionsObject, "symbol-count"),
-                            GetParameterOrDefault(optionsObject, "market", null),
-                            GetParameterOrDefault(optionsObject, "security-type", "Equity"),
-                            GetParameterOrDefault(optionsObject, "resolution", "Minute"),
-                            GetParameterOrDefault(optionsObject, "data-density", "Dense"),
-                            GetParameterOrDefault(optionsObject, "include-coarse", "true"),
-                            GetParameterOrDefault(optionsObject, "quote-trade-ratio", "1"),
-                            GetParameterOrDefault(optionsObject, "random-seed", null),
-                            GetParameterOrDefault(optionsObject, "ipo-percentage", "5.0"),
-                            GetParameterOrDefault(optionsObject, "rename-percentage", "30.0"),
-                            GetParameterOrDefault(optionsObject, "splits-percentage", "15.0"),
-                            GetParameterOrDefault(optionsObject, "dividends-percentage", "60.0"),
-                            GetParameterOrDefault(optionsObject, "dividend-every-quarter-percentage", "30.0")
-                        );
-                        break;
-
                     default:
                         PrintMessageAndExit(1, "ERROR: Unrecognized --app value");
                         break;
@@ -271,18 +99,5 @@ namespace QuantConnect.ToolBox
             }
             return optionsObject[parameter].ToString();
         }
-
-        private static string GetParameterOrDefault(IReadOnlyDictionary<string, object> optionsObject, string parameter, string defaultValue)
-        {
-            object value;
-            if (!optionsObject.TryGetValue(parameter, out value))
-            {
-                Console.WriteLine($"'{parameter}' was not specified. Using default value: '{defaultValue}'");
-                return defaultValue;
-            }
-
-            return value.ToString();
-        }
-
     }
 }

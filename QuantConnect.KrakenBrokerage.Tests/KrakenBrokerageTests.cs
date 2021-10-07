@@ -76,9 +76,10 @@ namespace QuantConnect.Tests.Brokerages.Kraken
             var apiKey = Config.Get("kraken-api-key");
             var apiSecret = Config.Get("kraken-api-secret");
             var tier = Config.Get("kraken-verification-tier");
+            var orderBookDepth = Config.GetInt("kraken-orderbook-depth", 10);
 
 
-            return new KrakenBrokerage(apiKey, apiSecret, tier, algorithm.Object, new AggregationManager(), null);
+            return new KrakenBrokerage(apiKey, apiSecret, tier, orderBookDepth, algorithm.Object, new AggregationManager(), null);
         }
 
         protected override Symbol Symbol => StaticSymbol;

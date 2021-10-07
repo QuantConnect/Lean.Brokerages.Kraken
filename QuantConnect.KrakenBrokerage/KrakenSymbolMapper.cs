@@ -16,6 +16,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using QuantConnect.Logging;
 using QuantConnect.Securities;
 
 namespace QuantConnect.Brokerages.Kraken
@@ -155,21 +156,24 @@ namespace QuantConnect.Brokerages.Kraken
                 throw new ArgumentException($"Only crypto symbols available in Kraken now. Current symbol security type: {securityType}");
             }
 
-            if (_openOrdersSymbolMap.ContainsKey(brokerageSymbol))
+            Symbol leanSymbol;
+            if (_openOrdersSymbolMap.TryGetValue(brokerageSymbol, out leanSymbol))
             {
-                return _openOrdersSymbolMap[brokerageSymbol];
+                return leanSymbol;
             }
 
-            var symbol = _symbolPropertiesMap.Where(kvp => kvp.Value.Description.Replace("/", string.Empty) == brokerageSymbol);
+            var symbol = _symbolPropertiesMap.FirstOrDefault(kvp => kvp.Value.Description.Replace("/", string.Empty) == brokerageSymbol);
             
-            if (symbol == null || !symbol.Any())
+            if (symbol.Equals(default(KeyValuePair<Symbol, SymbolProperties>)))
             {
                 throw new ArgumentException($"Unknown symbol: {brokerageSymbol}/{securityType}/{market}");
             }
 
-            _openOrdersSymbolMap[brokerageSymbol] = symbol.First().Key;
+            leanSymbol = symbol.Key;
             
-            return _openOrdersSymbolMap[brokerageSymbol];
+            _openOrdersSymbolMap[brokerageSymbol] = leanSymbol;
+            
+            return leanSymbol;
         }
         
         /// <summary>
@@ -214,20 +218,23 @@ namespace QuantConnect.Brokerages.Kraken
         /// <exception cref="ArgumentException">Unknown Websocket symbol</exception>
         public Symbol GetSymbolFromWebsocket(string wsSymbol)
         {
-            if (_wsSymbolMap.ContainsKey(wsSymbol))
+            Symbol leanSymbol;
+            if (_wsSymbolMap.TryGetValue(wsSymbol, out leanSymbol))
             {
-                return _wsSymbolMap[wsSymbol];
+                return leanSymbol;
             }
-            
-            var symbol = _symbolPropertiesMap.Where(i => i.Value.Description == wsSymbol);
-            if (symbol == null || !symbol.Any())
+
+            var symbol = _symbolPropertiesMap.FirstOrDefault(i => i.Value.Description == wsSymbol);
+            if (symbol.Equals(default(KeyValuePair<Symbol, SymbolProperties>)))
             {
                 throw new ArgumentException($"Unknown symbol: {wsSymbol}/{SecurityType.Crypto}/{Market.Kraken}");
             }
 
-            _wsSymbolMap[wsSymbol] = symbol.First().Key;
+            leanSymbol = symbol.Key;
             
-            return _wsSymbolMap[wsSymbol];
+            _wsSymbolMap[wsSymbol] = leanSymbol;
+            
+            return leanSymbol;
         }
         
         /// <summary>

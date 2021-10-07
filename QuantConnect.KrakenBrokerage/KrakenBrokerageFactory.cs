@@ -53,6 +53,7 @@ namespace QuantConnect.Brokerages.Kraken
             { "kraken-api-secret", Config.Get("kraken-api-secret")},
             { "kraken-api-key", Config.Get("kraken-api-key")},
             { "kraken-spot-verification-tier", Config.Get("kraken-verification-tier")},
+            { "kraken-orderbook-depth", Config.Get("kraken-orderbook-depth", "10")},
 
             // load holdings if available
             { "live-holdings", Config.Get("live-holdings")},
@@ -86,6 +87,7 @@ namespace QuantConnect.Brokerages.Kraken
                 job.BrokerageData["kraken-api-key"],
                 job.BrokerageData["kraken-api-secret"],
                 job.BrokerageData["kraken-verification-tier"],
+                job.BrokerageData["kraken-orderbook-depth"].ToInt32(),
                 algorithm,
                 Composer.Instance.GetExportedValueByTypeName<IDataAggregator>(Config.Get("data-aggregator", "QuantConnect.Lean.Engine.DataFeeds.AggregationManager")),
                 job);

@@ -1,3 +1,18 @@
+/*
+ * QUANTCONNECT.COM - Democratizing Finance, Empowering Individuals.
+ * Lean Algorithmic Trading Engine v2.0. Copyright 2014 QuantConnect Corporation.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+*/
+
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -130,14 +145,14 @@ namespace QuantConnect.Brokerages.Kraken
                         }
                     }
 
-                    if (!data.Value.ToString().Contains("vol_exec")) // status update
+                    if (data.Value["vol_exec"] == null) // status update
                     {
                         var orderData = data.Value.ToObject<KrakenBaseWsResponse>();
-                        if (data.Value.ToString().Contains("status"))
+                        if (data.Value["status"] != null)
                         {
                             status = GetOrderStatus(orderData.Status);
                         }
-                        else if (data.Value.ToString().Contains("touched")) // Limit if touched order have been touched
+                        else if (data.Value["flags"].ToString().Contains("touched")) // Limit if touched order have been touched
                         {
                             status = OrderStatus.UpdateSubmitted;
                         }
@@ -157,7 +172,7 @@ namespace QuantConnect.Brokerages.Kraken
                         var orderFee = new OrderFee(new CashAmount(orderData.Fee, feeCurrency));
                         OrderDirection direction;
 
-                        if (!data.Value.ToString().Contains("descr"))
+                        if (data.Value["descr"] == null)
                         {
                             status = GetOrderStatus(orderData.Status);
                             updTime = !string.IsNullOrEmpty(orderData.LastUpdated) ? Time.UnixTimeStampToDateTime(Convert.ToDouble(orderData.LastUpdated)) : DateTime.UtcNow;
@@ -180,6 +195,11 @@ namespace QuantConnect.Brokerages.Kraken
                         if (direction == OrderDirection.Sell)
                         {
                             fillQuantity *= -1;
+                        }
+
+                        if (status == OrderStatus.Filled || status == OrderStatus.Canceled)
+                        {
+                            _rateLimiter.OrderRateLimitDecay(order.Symbol);
                         }
 
                         orderEvent = new OrderEvent
@@ -207,9 +227,9 @@ namespace QuantConnect.Brokerages.Kraken
             }
         }
         
-        private JsonObject CreateKrakenOrder(Order order, out string symbol)
+        private JsonObject CreateKrakenOrder(Order order)
         {
-            symbol = _symbolMapper.GetWebsocketSymbol(order.Symbol);
+            var symbol = _symbolMapper.GetWebsocketSymbol(order.Symbol);
 
             var parameters = new JsonObject
             {
