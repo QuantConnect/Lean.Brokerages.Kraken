@@ -44,7 +44,7 @@ namespace QuantConnect.ToolBox.KrakenDownloader
                 {
                     quote = "BTC";
                 }
-                yield return $"kraken,{instr.Value["altname"]},crypto,{instr.Value["wsname"]},{quote},{instr.Value["lot_multiplier"]},{priceDecimals},{quantityDecimals},{instr.Name}";
+                yield return $"kraken,{instr.Value["altname"]},crypto,{instr.Value["wsname"]},{quote},{instr.Value["lot_multiplier"]},{priceDecimals},{quantityDecimals},{instr.Name},{instr.Value["ordermin"]}";
             }
         }
     }

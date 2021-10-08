@@ -54,16 +54,17 @@ namespace QuantConnect.ToolBox.KrakenDataDownloader
                     // Download data
                     var pairObject = Symbol.Create(pair, SecurityType.Crypto, Market.Kraken);
                     var data = downloader.Get(pairObject, castResolution == Resolution.Second ? Resolution.Tick : castResolution, startDate, endDate);
-
+                    var bars = data.Cast<TradeBar>().ToList();
+                    
                     // Write data
                     var writer = new LeanDataWriter(castResolution, pairObject, dataDirectory);
 
                     IEnumerable<BaseData> aggregatedBars = null;
                     if (castResolution == Resolution.Second)
                     {
-                        aggregatedBars = downloader.AggregateBars(pairObject, data.Cast<Tick>(), castResolution.ToTimeSpan());
+                        aggregatedBars = LeanData.AggregateTradeBars(bars, pairObject, castResolution.ToTimeSpan());
                     }
-                    writer.Write(aggregatedBars ?? data);
+                    writer.Write(aggregatedBars ?? bars);
                 }
             }
             catch (Exception err)

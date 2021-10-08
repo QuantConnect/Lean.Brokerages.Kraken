@@ -27,7 +27,7 @@ namespace QuantConnect.Brokerages.Kraken.Models
         /// <summary>
         /// Candle Begin timestamp
         /// </summary>
-        public double Time { get; set; }
+        public decimal Time { get; set; }
         
         /// <summary>
         /// Market ticker

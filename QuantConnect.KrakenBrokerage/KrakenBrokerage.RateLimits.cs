@@ -15,10 +15,13 @@
 
 using System;
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Timers;
 using QuantConnect.Brokerages.Kraken.Models;
 using QuantConnect.Logging;
 using QuantConnect.Util;
+using Timer = System.Timers.Timer;
 
 namespace QuantConnect.Brokerages.Kraken
 {
@@ -35,6 +38,7 @@ namespace QuantConnect.Brokerages.Kraken
         private readonly object CancelLocker = new();
         public decimal RateLimitCounter { get; set; }
         
+        // By default - Starter verification tier limits
         private readonly Dictionary<KrakenRateLimitType, decimal> _rateLimitsDictionary = new ()
         {
             {KrakenRateLimitType.Common, 15},
@@ -52,9 +56,6 @@ namespace QuantConnect.Brokerages.Kraken
         
         private Dictionary<Symbol, int> RateLimitsOrderPerSymbolDictionary { get; set; }
         private Dictionary<string, decimal> RateLimitsCancelPerSymbolDictionary { get; set; }
-        
-        // specify very big number of occurrences, because we will estimate it by ourselves. Will be used only for cooldown
-        private readonly RateGate _restRateLimiter = new RateGate(1, TimeSpan.FromSeconds(20));
         
         /// <summary>
         /// Choosing right rate limits based on verification tier
@@ -104,10 +105,9 @@ namespace QuantConnect.Brokerages.Kraken
 
             if (isExceeded)
             {
-                Log.Trace("Brokerage.OnMessage(): " + new BrokerageMessageEvent(BrokerageMessageType.Warning, "SpotRateLimit",
+                Log.Trace("Brokerage.OnMessage(): " + new BrokerageMessageEvent(BrokerageMessageType.Warning, "RestRateLimit",
                     "The API request has been rate limited. To avoid this message, please reduce the frequency of API calls."));
-                _restRateLimiter.WaitToProceed(TimeSpan.Zero);
-                _restRateLimiter.WaitToProceed();
+                Wait20Seconds();
             }
 
             lock (RestLocker)
@@ -162,10 +162,10 @@ namespace QuantConnect.Brokerages.Kraken
         /// <param name="symbol">Brokerage symbol</param>
         public void OrderRateLimitDecay(Symbol symbol)
         {
-            if (RateLimitsOrderPerSymbolDictionary.TryGetValue(symbol, out var currentOrdersCount))
+            lock (OrderLocker)
             {
-                lock (OrderLocker)
-                { 
+                if (RateLimitsOrderPerSymbolDictionary.TryGetValue(symbol, out var currentOrdersCount))
+                {
                     if (currentOrdersCount <= 0)
                     {
                         RateLimitsOrderPerSymbolDictionary[symbol] = 0;
@@ -200,8 +200,7 @@ namespace QuantConnect.Brokerages.Kraken
                 {
                     Log.Trace("Brokerage.OnMessage(): " + new BrokerageMessageEvent(BrokerageMessageType.Warning, "CancelRateLimit",
                         "The cancel order API request has been rate limited. To avoid this message, please reduce the frequency of cancel order API calls."));
-                    _restRateLimiter.WaitToProceed(TimeSpan.Zero);
-                    _restRateLimiter.WaitToProceed();
+                    Wait20Seconds();
                 }
 
                 lock (CancelLocker)
@@ -272,10 +271,11 @@ namespace QuantConnect.Brokerages.Kraken
 
                 if (RateLimitsCancelPerSymbolDictionary.Count > 0)
                 {
-                    foreach (var key in RateLimitsCancelPerSymbolDictionary.Keys)
+                    lock (CancelLocker)
                     {
-                        lock (CancelLocker)
+                        foreach (var key in RateLimitsCancelPerSymbolDictionary.Keys)
                         {
+
                             if (RateLimitsCancelPerSymbolDictionary[key] <= _rateLimitsDecayDictionary[KrakenRateLimitType.Cancel])
                             {
                                 RateLimitsCancelPerSymbolDictionary[key] = 0;
@@ -294,6 +294,23 @@ namespace QuantConnect.Brokerages.Kraken
             }
         }
 
+        private void Wait20Seconds()
+        {
+            var timer = new Timer(20000);
+            timer.AutoReset = false;
+
+            var manualSetEvent = new ManualResetEvent(false);
+
+            timer.Elapsed += (o, e) => { manualSetEvent.Set(); };
+            
+            timer.Start();
+
+            manualSetEvent.WaitOne();
+            
+            timer.Dispose();
+            manualSetEvent.Dispose();
+        }
+
         /// <summary>
         /// Dispose kraken rateLimits
         /// </summary>
@@ -301,7 +318,6 @@ namespace QuantConnect.Brokerages.Kraken
         {
             _1sRateLimitTimer?.Stop();
             _1sRateLimitTimer.DisposeSafely();
-            _restRateLimiter.DisposeSafely();
         }
     }
 }

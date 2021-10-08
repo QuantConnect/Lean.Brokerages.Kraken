@@ -53,7 +53,7 @@ namespace QuantConnect.Brokerages.Kraken.Converters
 
             return new KrakenCandle
             {
-                Time = array[0].Type == JTokenType.Null ? 0 : (double) array[0],
+                Time = array[0].Type == JTokenType.Null ? 0 : Convert.ToDecimal((string) array[0]),
                 Low = array[3].Type == JTokenType.Null ? 0 : Convert.ToDecimal((string) array[3]),
                 High = array[2].Type == JTokenType.Null ? 0 : Convert.ToDecimal((string) array[2]),
                 Open = array[1].Type == JTokenType.Null ? 0 : Convert.ToDecimal((string) array[1]),

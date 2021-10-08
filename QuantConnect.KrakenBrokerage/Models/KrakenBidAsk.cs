@@ -37,6 +37,6 @@ namespace QuantConnect.Brokerages.Kraken.Models
         /// <summary>
         /// Ask or bid time
         /// </summary>
-        public double Timestamp { get; set; }
+        public decimal Timestamp { get; set; }
     }
 }

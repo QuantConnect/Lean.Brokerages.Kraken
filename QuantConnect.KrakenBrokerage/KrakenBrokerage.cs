@@ -47,6 +47,7 @@ namespace QuantConnect.Brokerages.Kraken
         private LiveNodePacket _job;
         private readonly KrakenBrokerageRateLimits _rateLimiter;
 
+        private const int MaximumSymbolsPerConnection = 50;
         private const string _apiUrl = "https://api.kraken.com";
         private const string _wsUrl = "wss://ws.kraken.com";
         private const string _wsAuthUrl = "wss://ws-auth.kraken.com";
@@ -59,6 +60,7 @@ namespace QuantConnect.Brokerages.Kraken
         /// <param name="apiKey">Api key</param>
         /// <param name="apiSecret">Api secret</param>
         /// <param name="verificationTier">Account verification tier</param>
+        /// <param name="orderBookDepth">Desired depth of orderbook that will receive DataQueueHandler</param>
         /// <param name="algorithm"><see cref="IAlgorithm"/> instance</param>
         /// <param name="aggregator"><see cref="IDataAggregator"/> instance</param>
         /// <param name="job">Lean <see cref="LiveNodePacket"/></param>
@@ -75,8 +77,8 @@ namespace QuantConnect.Brokerages.Kraken
 
             SubscriptionManager = new BrokerageMultiWebSocketSubscriptionManager(
                 _wsUrl,
-                150,
-                10,
+                MaximumSymbolsPerConnection,
+                0,
                 null,
                 () => new KrakenWebSocketWrapper(null),
                 Subscribe,
@@ -499,8 +501,8 @@ namespace QuantConnect.Brokerages.Kraken
         private IEnumerable<BaseData> GetTradeBars(HistoryRequest request, string marketSymbol)
         {
             var url = $"/0/public/Trades?pair={marketSymbol}";
-            var start = Time.DateTimeToUnixTimeStamp(request.StartTimeUtc);
-            var end = Time.DateTimeToUnixTimeStamp(request.EndTimeUtc);
+            var start = Convert.ToDecimal(Time.DateTimeToUnixTimeStamp(request.StartTimeUtc));
+            var end = Convert.ToDecimal(Time.DateTimeToUnixTimeStamp(request.EndTimeUtc));
             var period = request.Resolution.ToTimeSpan();
 
             while (end - start > 1) // allow 1 sec difference because of rounding from decimal to long

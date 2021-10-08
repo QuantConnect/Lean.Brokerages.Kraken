@@ -36,7 +36,6 @@ namespace QuantConnect.ToolBox.KrakenDownloader
     {
         private readonly KrakenBrokerage _brokerage;
         private readonly KrakenSymbolMapper _symbolMapper = new ();
-        private const string UrlPrototype = @"https://api.kraken.com/0/public/Trades?pair={0}&since={1}";
 
         public KrakenDataDownloader()
         {
@@ -82,37 +81,7 @@ namespace QuantConnect.ToolBox.KrakenDownloader
             {
                 yield return baseData;
             }
-           
         }
-        
-        
-        /// <summary>
-        /// Aggregates a list of minute bars at the requested resolution
-        /// </summary>
-        /// <param name="symbol"></param>
-        /// <param name="bars"></param>
-        /// <param name="resolution"></param>
-        /// <returns></returns>
-        internal IEnumerable<TradeBar> AggregateBars(Symbol symbol, IEnumerable<Tick> bars, TimeSpan resolution)
-        {
-            return
-                (from b in bars
-                    group b by b.Time.RoundDown(resolution)
-                    into g
-                    select new TradeBar
-                    {
-                        Symbol = symbol,
-                        Time = g.Key,
-                        Open = g.First().Value,
-                        High = g.Max(i => i.Value),
-                        Low = g.Min(b => b.Value),
-                        Close = g.Last().Value,
-                        Volume = g.Sum(b => b.Quantity),
-                        Value = g.Last().Value,
-                        DataType = MarketDataType.TradeBar,
-                        Period = resolution,
-                        EndTime = g.Key.AddMilliseconds(resolution.TotalMilliseconds)
-                    });
-        }
+
     }
 }

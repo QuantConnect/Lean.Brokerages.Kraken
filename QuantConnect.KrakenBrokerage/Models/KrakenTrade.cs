@@ -37,7 +37,7 @@ namespace QuantConnect.Brokerages.Kraken.Models
         /// <summary>
         /// Time of trade, seconds since epoch
         /// </summary>
-        public double Time { get; set; }
+        public decimal Time { get; set; }
         
         /// <summary>
         /// Triggering order side, buy/sell

@@ -55,7 +55,7 @@ namespace QuantConnect.Brokerages.Kraken.Converters
             {
                 Price = array[0].Type == JTokenType.Null ? 0 : Convert.ToDecimal((string) array[0]),
                 Volume = array[1].Type == JTokenType.Null ? 0 : Convert.ToDecimal((string) array[1]),
-                Timestamp = array[2].Type == JTokenType.Null ? 0 : Convert.ToDouble((string) array[2])
+                Timestamp = array[2].Type == JTokenType.Null ? 0 : Convert.ToDecimal((string) array[2])
             };
         }
 

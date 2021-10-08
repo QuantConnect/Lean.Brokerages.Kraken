@@ -24,6 +24,7 @@ using QuantConnect.Data;
 using QuantConnect.Data.Market;
 using QuantConnect.Logging;
 using QuantConnect.Packets;
+using QuantConnect.Util;
 using RestSharp;
 
 namespace QuantConnect.Brokerages.Kraken
@@ -84,8 +85,7 @@ namespace QuantConnect.Brokerages.Kraken
         /// <param name="symbol">The symbol to subscribe</param>
         private bool Subscribe(IWebSocket webSocket, Symbol symbol)
         {
-            _webSocketRateLimiter.WaitToProceed();
-            webSocket.Send(JsonConvert.SerializeObject(new
+            WebsocketSend(webSocket, new
             {
                 @event = "subscribe",
                 pair = new[]
@@ -97,10 +97,9 @@ namespace QuantConnect.Brokerages.Kraken
                     depth = _orderBookDepth, 
                     name = "book"
                 }
-            }));
-
-            _webSocketRateLimiter.WaitToProceed();
-            webSocket.Send(JsonConvert.SerializeObject(new
+            });
+            
+            WebsocketSend(webSocket, new
             {
                 @event = "subscribe",
                 pair = new[]
@@ -111,7 +110,7 @@ namespace QuantConnect.Brokerages.Kraken
                 {
                     name = "trade"
                 }
-            }));
+            });
 
             return true;
         }
@@ -123,8 +122,7 @@ namespace QuantConnect.Brokerages.Kraken
         /// <param name="symbol">The symbol to unsubscribe</param>
         private bool Unsubscribe(IWebSocket webSocket, Symbol symbol)
         {
-            _webSocketRateLimiter.WaitToProceed();
-            webSocket.Send(JsonConvert.SerializeObject(new
+            WebsocketSend(webSocket, new
             {
                 @event = "unsubscribe",
                 pair = new[]
@@ -136,10 +134,9 @@ namespace QuantConnect.Brokerages.Kraken
                     depth = _orderBookDepth,
                     name = "book"
                 }
-            }));
-
-            _webSocketRateLimiter.WaitToProceed();
-            webSocket.Send(JsonConvert.SerializeObject(new
+            });
+            
+            WebsocketSend(webSocket, new
             {
                 @event = "unsubscribe",
                 pair = new[]
@@ -150,9 +147,18 @@ namespace QuantConnect.Brokerages.Kraken
                 {
                     name = "trade"
                 }
-            }));
+            });
 
             return true;
+        }
+
+        private void WebsocketSend(IWebSocket webSocket, object data)
+        {
+            var message = JsonConvert.SerializeObject(data);
+            
+            _webSocketRateLimiter.WaitToProceed();
+            
+            webSocket.Send(message);
         }
 
         /// <summary>
@@ -174,7 +180,7 @@ namespace QuantConnect.Brokerages.Kraken
                     case "subscriptionStatus":
                         if (token["errorMessage"] != null)
                         {
-                            Log.Trace($"KrakenDataQueueHandler.On{token["status"]}(): Channel {token["status"]}: Error:{token["errorMessage"]}");
+                            Log.Error($"KrakenDataQueueHandler.On{token["status"]}(): Channel {token["status"]}: Error:{token["errorMessage"]}");
                         }
                         else
                         {
@@ -421,6 +427,7 @@ namespace QuantConnect.Brokerages.Kraken
         public override void Disconnect()
         {
             WebSocket.Close();
+            _webSocketRateLimiter.DisposeSafely();
         }
 
 
