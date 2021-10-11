@@ -72,7 +72,8 @@ namespace QuantConnect.Brokerages.Kraken
             _aggregator = aggregator;
             _securityProvider = algorithm?.Portfolio;
             _orderBookDepth = orderBookDepth;
-            
+            _orderBookChannel = $"book-{_orderBookDepth}";
+
             _rateLimiter = new KrakenBrokerageRateLimits(verificationTier);
             _rateLimiter.Message += (_, e) => OnMessage(e);
 

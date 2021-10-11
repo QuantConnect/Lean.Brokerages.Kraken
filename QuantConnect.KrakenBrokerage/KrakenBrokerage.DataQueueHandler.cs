@@ -43,6 +43,7 @@ namespace QuantConnect.Brokerages.Kraken
         
         private readonly ConcurrentDictionary<Symbol, DefaultOrderBook> _orderBooks = new ConcurrentDictionary<Symbol, DefaultOrderBook>();
 
+        private readonly string _orderBookChannel;
         private readonly int _orderBookDepth; // Valid Options are: 10, 25, 100, 500, 1000
 
         #region Aggregator Update
@@ -198,7 +199,7 @@ namespace QuantConnect.Brokerages.Kraken
                 
                 var symbol = _symbolMapper.GetSymbolFromWebsocket(jToken.Last.ToString());
                 
-                if (channel == $"book-{_orderBookDepth}")
+                if (channel == _orderBookChannel)
                 {
                     if (jToken[1]["as"] != null || jToken[1]["bs"] != null) // snapshot
                     {
