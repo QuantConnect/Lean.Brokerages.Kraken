@@ -32,7 +32,7 @@ namespace QuantConnect.Tests.Brokerages.Kraken
             Log.Trace("Rest Rate Limit test");
             Log.Trace("");
             
-            var rateLimiter = new KrakenBrokerageRateLimits(tier);
+            var rateLimiter = new TestKrakenBrokerageRateLimits(tier);
             var watch = System.Diagnostics.Stopwatch.StartNew();
             
             for (int i = 0; i < requestNumber; i++)
@@ -48,7 +48,7 @@ namespace QuantConnect.Tests.Brokerages.Kraken
             else
             {
                 Assert.Less(watch.ElapsedMilliseconds, 20000);
-                Assert.AreEqual(requestNumber, rateLimiter.RateLimitCounter);
+                Assert.AreEqual(requestNumber, rateLimiter.GetRateLimitCounter);
             }
         }
         
@@ -114,7 +114,7 @@ namespace QuantConnect.Tests.Brokerages.Kraken
             Log.Trace("Rest Decay Limit test");
             Log.Trace("");
             
-            var rateLimiter = new KrakenBrokerageRateLimits(tier);
+            var rateLimiter = new TestKrakenBrokerageRateLimits(tier);
 
             const int requestNumber = 15;
             
@@ -125,7 +125,7 @@ namespace QuantConnect.Tests.Brokerages.Kraken
 
             await Task.Delay(decaySeconds * 1000 + 500); // 500ms so update timer have time to run
 
-            Assert.AreEqual(rateLimiter.RateLimitCounter, requestNumber - decaySeconds * multiplier);
+            Assert.AreEqual(rateLimiter.GetRateLimitCounter, requestNumber - decaySeconds * multiplier);
         }
         
         [Test]
@@ -273,6 +273,14 @@ namespace QuantConnect.Tests.Brokerages.Kraken
                     new TestCaseData("Pro", 0, 22, true), // decay per second 3.75
                     new TestCaseData("Pro", 3, 22, false), // 3 * 3.75 = -11.25
                 };
+            }
+        }
+
+        private class TestKrakenBrokerageRateLimits : KrakenBrokerageRateLimits
+        {
+            public decimal GetRateLimitCounter => RateLimitCounter;
+            public TestKrakenBrokerageRateLimits(string verificationTier) : base(verificationTier)
+            {
             }
         }
     }

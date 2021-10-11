@@ -74,6 +74,7 @@ namespace QuantConnect.Brokerages.Kraken
             _orderBookDepth = orderBookDepth;
             
             _rateLimiter = new KrakenBrokerageRateLimits(verificationTier);
+            _rateLimiter.Message += (_, e) => OnMessage(e);
 
             SubscriptionManager = new BrokerageMultiWebSocketSubscriptionManager(
                 _wsUrl,
