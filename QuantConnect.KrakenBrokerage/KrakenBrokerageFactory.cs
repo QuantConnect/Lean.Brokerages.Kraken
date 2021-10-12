@@ -25,7 +25,7 @@ using QuantConnect.Util;
 namespace QuantConnect.Brokerages.Kraken
 {
     /// <summary>
-    /// Factory type for the <see cref="KrakenBrokerageFactory"/>
+    /// Factory type for the <see cref="KrakenBrokerage"/>
     /// </summary>
     public class KrakenBrokerageFactory : BrokerageFactory
     {
@@ -33,7 +33,7 @@ namespace QuantConnect.Brokerages.Kraken
         /// Factory constructor
         /// </summary>
         public KrakenBrokerageFactory()
-            : base(typeof(KrakenBrokerageFactory))
+            : base(typeof(KrakenBrokerage))
         {
         }
 
@@ -52,7 +52,7 @@ namespace QuantConnect.Brokerages.Kraken
         {
             { "kraken-api-secret", Config.Get("kraken-api-secret")},
             { "kraken-api-key", Config.Get("kraken-api-key")},
-            { "kraken-spot-verification-tier", Config.Get("kraken-verification-tier")},
+            { "kraken-verification-tier", Config.Get("kraken-verification-tier")},
             { "kraken-orderbook-depth", Config.Get("kraken-orderbook-depth", "10")},
 
             // load holdings if available
