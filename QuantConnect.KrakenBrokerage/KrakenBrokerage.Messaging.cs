@@ -206,15 +206,14 @@ namespace QuantConnect.Brokerages.Kraken
                         else
                         {
                             totalFilledQuantity += fillQuantity;
+                            _fills[order.Id] = totalFilledQuantity;
                         }
 
                         if (totalFilledQuantity == order.AbsoluteQuantity)
                         {
                             status = OrderStatus.Filled;
                         }
-                        
-                        _fills[order.Id] = totalFilledQuantity;
-                        
+
                         if (fillQuantity != 0 && status != OrderStatus.Filled)
                         {
                             status = OrderStatus.PartiallyFilled;
