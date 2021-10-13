@@ -14,6 +14,7 @@
 */
 
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
@@ -54,6 +55,7 @@ namespace QuantConnect.Brokerages.Kraken
 
         private readonly RateGate _webSocketRateLimiter = new RateGate(50, TimeSpan.FromSeconds(5));
 
+        private readonly ConcurrentDictionary<int, decimal> _fills = new ConcurrentDictionary<int, decimal>();
         /// <summary>
         /// Constructor for brokerage
         /// </summary>

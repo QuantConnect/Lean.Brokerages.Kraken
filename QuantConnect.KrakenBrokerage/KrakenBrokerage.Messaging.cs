@@ -186,7 +186,35 @@ namespace QuantConnect.Brokerages.Kraken
 
                             direction = orderData.Descr.Type == "sell" ? OrderDirection.Sell : OrderDirection.Buy;
                         }
+                        
+                        // if the order is closed, we no longer need it in the active order list
+                        if (status is OrderStatus.Filled or OrderStatus.Canceled)
+                        {
+                            Order outOrder;
+                            CachedOrderIDs.TryRemove(order.Id, out outOrder);
+                            _rateLimiter.OrderRateLimitDecay(order.Symbol);
+                            _fills.TryRemove(order.Id, out _);
+                        }
 
+                        // skip order event when filled - it's already sent 
+                        if (status is OrderStatus.Filled) return;
+
+                        if (!_fills.TryGetValue(order.Id, out var totalFilledQuantity))
+                        {
+                            _fills[order.Id] = fillQuantity;
+                        }
+                        else
+                        {
+                            totalFilledQuantity += fillQuantity;
+                        }
+
+                        if (totalFilledQuantity == order.AbsoluteQuantity)
+                        {
+                            status = OrderStatus.Filled;
+                        }
+                        
+                        _fills[order.Id] = totalFilledQuantity;
+                        
                         if (fillQuantity != 0 && status != OrderStatus.Filled)
                         {
                             status = OrderStatus.PartiallyFilled;
@@ -196,12 +224,7 @@ namespace QuantConnect.Brokerages.Kraken
                         {
                             fillQuantity *= -1;
                         }
-
-                        if (status == OrderStatus.Filled || status == OrderStatus.Canceled)
-                        {
-                            _rateLimiter.OrderRateLimitDecay(order.Symbol);
-                        }
-
+                        
                         orderEvent = new OrderEvent
                         (
                             order.Id, order.Symbol, updTime, status,
@@ -209,14 +232,7 @@ namespace QuantConnect.Brokerages.Kraken
                             orderFee, $"Kraken Order Event {direction}"
                         );
                     }
-
-                    // if the order is closed, we no longer need it in the active order list
-                    if (status is OrderStatus.Filled or OrderStatus.Canceled)
-                    {
-                        Order outOrder;
-                        CachedOrderIDs.TryRemove(order.Id, out outOrder);
-                    }
-
+                    
                     OnOrderEvent(orderEvent);
                 }
                 catch (Exception e)
