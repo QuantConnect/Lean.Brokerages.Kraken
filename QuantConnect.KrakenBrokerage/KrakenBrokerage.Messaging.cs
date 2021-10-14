@@ -14,6 +14,7 @@
 */
 
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using Newtonsoft.Json.Linq;
@@ -30,6 +31,8 @@ namespace QuantConnect.Brokerages.Kraken
 {
     public partial class KrakenBrokerage
     {
+        
+        private readonly ConcurrentDictionary<int, bool> _closedOrderEventSend = new ConcurrentDictionary<int, bool>();
         /// <summary>
         /// Private message parser
         /// </summary>
@@ -77,6 +80,8 @@ namespace QuantConnect.Brokerages.Kraken
                             CachedOrderIDs[userref].BrokerId.Add(brokerId);
                         }
 
+                        _closedOrderEventSend[CachedOrderIDs[userref].Id] = false;
+                        
                         return;
                     }
 
@@ -116,9 +121,12 @@ namespace QuantConnect.Brokerages.Kraken
                     var data = trade.First as JProperty;
                     var brokerId = data.Name;
 
-                    var order = CachedOrderIDs
-                        .FirstOrDefault(o => o.Value.BrokerId.Contains(brokerId))
-                        .Value;
+                    var idOrder = CachedOrderIDs
+                        .FirstOrDefault(o => o.Value.BrokerId.Contains(brokerId));
+
+                    var order = idOrder.Value;
+
+                    var orderId = idOrder.Key;
 
                     if (order == null)
                     {
@@ -159,54 +167,62 @@ namespace QuantConnect.Brokerages.Kraken
 
                         orderEvent = new OrderEvent
                         (
-                            order.Id, order.Symbol, updTime, status,
+                            orderId, order.Symbol, updTime, status,
                             order.Direction, 0, 0,
                             new OrderFee(new CashAmount(0m, feeCurrency)), $"Kraken Order Event {order.Direction}"
                         );
                     }
                     else
                     {
-                        var orderData = data.Value.ToObject<KrakenWsOpenOrder>();
-                        var fillPrice = orderData.Price;
-                        var fillQuantity = orderData.Vol_exec;
-                        var orderFee = new OrderFee(new CashAmount(orderData.Fee, feeCurrency));
+                        decimal fillPrice;
+                        decimal fillQuantity;
+                        OrderFee orderFee;
                         OrderDirection direction;
 
-                        if (data.Value["descr"] == null)
+                        if (data.Value["descr"] != null) // snapshot of all open orders
                         {
+                            var orderData = data.Value.ToObject<KrakenWsOpenOrder>();
+                            
+                            fillPrice = orderData.Price;
+                            fillQuantity = orderData.Vol_exec;
+                            orderFee = new OrderFee(new CashAmount(orderData.Fee, feeCurrency));
+                            
+                            status = GetOrderStatus(orderData.Status);
+
+                            direction = orderData.Descr.Type == "sell" ? OrderDirection.Sell : OrderDirection.Buy;
+                        }
+                        else if (data.Value["status"] != null) // status update
+                        {
+                            var orderData = data.Value.ToObject<KrakenOrderStatusEvent>();
+                            fillQuantity = orderData.Vol_exec;
+                            orderFee = new OrderFee(new CashAmount(orderData.Fee, feeCurrency));
+                            
                             status = GetOrderStatus(orderData.Status);
                             updTime = !string.IsNullOrEmpty(orderData.LastUpdated) ? Time.UnixTimeStampToDateTime(Convert.ToDecimal(orderData.LastUpdated)) : DateTime.UtcNow;
 
                             direction = order.Direction;
                             fillPrice = orderData.Avg_Price;
                         }
-                        else
+                        else // trade execution
                         {
-                            status = GetOrderStatus(orderData.Status);
-
-                            direction = orderData.Descr.Type == "sell" ? OrderDirection.Sell : OrderDirection.Buy;
-                        }
-                        
-                        // if the order is closed, we no longer need it in the active order list
-                        if (status is OrderStatus.Filled or OrderStatus.Canceled)
-                        {
-                            Order outOrder;
-                            CachedOrderIDs.TryRemove(order.Id, out outOrder);
-                            _rateLimiter.OrderRateLimitDecay(order.Symbol);
-                            _fills.TryRemove(order.Id, out _);
+                            var orderData = data.Value.ToObject<KrakenTradeExecutionEvent>();
+                            
+                            fillQuantity = orderData.Vol_exec;
+                            orderFee = new OrderFee(new CashAmount(orderData.Fee, feeCurrency));
+                            
+                            direction = order.Direction;
+                            fillPrice = orderData.Avg_Price;
                         }
 
-                        // skip order event when filled - it's already sent 
-                        if (status is OrderStatus.Filled) return;
-
-                        if (!_fills.TryGetValue(order.Id, out var totalFilledQuantity))
+                        if (!_fills.TryGetValue(orderId, out var totalFilledQuantity))
                         {
-                            _fills[order.Id] = fillQuantity;
+                            _fills[orderId] = fillQuantity;
+                            totalFilledQuantity = fillQuantity;
                         }
                         else
                         {
                             totalFilledQuantity += fillQuantity;
-                            _fills[order.Id] = totalFilledQuantity;
+                            _fills[orderId] = totalFilledQuantity;
                         }
 
                         if (totalFilledQuantity == order.AbsoluteQuantity)
@@ -224,15 +240,36 @@ namespace QuantConnect.Brokerages.Kraken
                             fillQuantity *= -1;
                         }
                         
+                        var orderEventSent = _closedOrderEventSend[orderId];
+                            
+                        if (status is OrderStatus.Filled && orderEventSent || status is OrderStatus.Canceled)
+                        {
+                            Order outOrder;
+                            CachedOrderIDs.TryRemove(orderId, out outOrder);
+                            _rateLimiter.OrderRateLimitDecay(order.Symbol);
+                            _fills.TryRemove(orderId, out _);
+                            _closedOrderEventSend.TryRemove(orderId, out _);
+                        }
+
+                        if (orderEventSent)
+                        {
+                            return;
+                        }
+                        
                         orderEvent = new OrderEvent
                         (
-                            order.Id, order.Symbol, updTime, status,
+                            orderId, order.Symbol, updTime, status,
                             direction, fillPrice, fillQuantity,
                             orderFee, $"Kraken Order Event {direction}"
                         );
                     }
                     
                     OnOrderEvent(orderEvent);
+                    
+                    if (status == OrderStatus.Filled)
+                    {
+                        _closedOrderEventSend[orderId] = true;
+                    }
                 }
                 catch (Exception e)
                 {
