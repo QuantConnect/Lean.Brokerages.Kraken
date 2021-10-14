@@ -13,12 +13,12 @@
  * limitations under the License.
 */
 using System;
-using System.Collections.Generic;
 using System.IO;
 using QuantConnect.Configuration;
 using QuantConnect.Logging;
 using QuantConnect.ToolBox.KrakenDataDownloader;
 using QuantConnect.Util;
+using static QuantConnect.Configuration.ApplicationParser;
 
 namespace QuantConnect.ToolBox
 {
@@ -33,6 +33,7 @@ namespace QuantConnect.ToolBox
                 Directory.CreateDirectory(destinationDir);
                 Log.FilePath = Path.Combine(destinationDir, "log.txt");
             }
+
             Log.LogHandler = Composer.Instance.GetExportedValueByTypeName<ILogHandler>(Config.Get("log-handler", "CompositeLogHandler"));
 
             var optionsObject = ToolboxArgumentParser.ParseArguments(args);
@@ -77,27 +78,6 @@ namespace QuantConnect.ToolBox
                         break;
                 }
             }
-        }
-
-        private static void PrintMessageAndExit(int exitCode = 0, string message = "")
-        {
-            if (!message.IsNullOrEmpty())
-            {
-                Console.WriteLine("\n" + message);
-            }
-            Console.WriteLine("\nUse the '--help' parameter for more information");
-            Console.WriteLine("Press any key to quit");
-            Console.ReadLine();
-            Environment.Exit(exitCode);
-        }
-
-        private static string GetParameterOrExit(IReadOnlyDictionary<string, object> optionsObject, string parameter)
-        {
-            if (!optionsObject.ContainsKey(parameter))
-            {
-                PrintMessageAndExit(1, "ERROR: REQUIRED parameter --" + parameter + "= is missing");
-            }
-            return optionsObject[parameter].ToString();
         }
     }
 }
