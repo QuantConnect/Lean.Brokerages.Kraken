@@ -179,7 +179,9 @@ namespace QuantConnect.Brokerages.Kraken
                         OrderFee orderFee;
                         OrderDirection direction;
 
-                        if (data.Value["descr"] != null) // snapshot of all open orders
+                        // snapshot of all open orders
+                        // when connected all orders come with a description
+                        if (data.Value["descr"] != null) 
                         {
                             var orderData = data.Value.ToObject<KrakenWsOpenOrder>();
                             
@@ -191,7 +193,9 @@ namespace QuantConnect.Brokerages.Kraken
 
                             direction = orderData.Descr.Type == "sell" ? OrderDirection.Sell : OrderDirection.Buy;
                         }
-                        else if (data.Value["status"] != null) // status update
+                        // status update
+                        // when order placed, canceled, rejected, expired or filled we receive status update
+                        else if (data.Value["status"] != null)
                         {
                             var orderData = data.Value.ToObject<KrakenOrderStatusEvent>();
                             fillQuantity = orderData.Vol_exec;
@@ -203,7 +207,10 @@ namespace QuantConnect.Brokerages.Kraken
                             direction = order.Direction;
                             fillPrice = orderData.Avg_Price;
                         }
-                        else // trade execution
+                        // trade execution
+                        // when order filled (or partially filled) we receive information about this trade
+                        // need this case because status isn't coming when order partially filled
+                        else 
                         {
                             var orderData = data.Value.ToObject<KrakenTradeExecutionEvent>();
                             
