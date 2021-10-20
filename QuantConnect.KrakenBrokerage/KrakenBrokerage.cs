@@ -56,6 +56,16 @@ namespace QuantConnect.Brokerages.Kraken
         private readonly RateGate _webSocketRateLimiter = new RateGate(50, TimeSpan.FromSeconds(5));
 
         private readonly ConcurrentDictionary<int, decimal> _fills = new ConcurrentDictionary<int, decimal>();
+
+        /// <summary>
+        /// Constructor for brokerage
+        /// </summary>
+        public KrakenBrokerage()
+        : this(Config.Get("kraken-api-key"), Config.Get("kraken-api-secret"), Config.Get("kraken-verification-tier"), Config.GetInt("kraken-orderbook-depth", 10), null,
+            Composer.Instance.GetPart<IDataAggregator>() ?? Composer.Instance.GetExportedValueByTypeName<IDataAggregator>(Config.Get("data-aggregator", "QuantConnect.Data.Common.CustomDataAggregator")), null)
+        {
+        }
+
         /// <summary>
         /// Constructor for brokerage
         /// </summary>
