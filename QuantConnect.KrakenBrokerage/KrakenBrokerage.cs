@@ -254,8 +254,13 @@ namespace QuantConnect.Brokerages.Kraken
             var token = MakeRequest(query, "GetAccountHoldings", param, Method.POST, true);
 
             var holdings = new List<Holding>();
+            var result = token["result"];
+            if (result == null)
+            {
+                return holdings;
+            }
 
-            foreach (JProperty balance in token["result"].Children())
+            foreach (JProperty balance in result.Children())
             {
                 var krakenPosition = balance.Value.ToObject<KrakenOpenPosition>();
                 var holding = new Holding
@@ -292,8 +297,13 @@ namespace QuantConnect.Brokerages.Kraken
             var token = MakeRequest(query, "GetCashBalance", method:Method.POST, isPrivate: true);
 
             var cash = new List<CashAmount>();
+            var result = token["result"];
+            if (result == null)
+            {
+                return cash;
+            }
 
-            var dictBalances = token["result"].ToObject<Dictionary<string, decimal>>();
+            var dictBalances = result.ToObject<Dictionary<string, decimal>>();
 
             foreach (var balance in dictBalances)
             {
