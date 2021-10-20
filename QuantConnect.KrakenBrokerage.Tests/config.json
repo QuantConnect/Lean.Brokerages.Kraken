@@ -1,0 +1,10 @@
+{
+  // engine
+  "data-folder": "../../../../Lean/Data/",
+  
+  // kraken configuration
+  "kraken-api-secret": "",
+  "kraken-api-key": "",
+  "kraken-verification-tier": "Starter", // Starter, Intermediate, Pro
+  "kraken-orderbook-depth": 10 // Valid Options are: 10, 25, 100, 500, 1000
+}

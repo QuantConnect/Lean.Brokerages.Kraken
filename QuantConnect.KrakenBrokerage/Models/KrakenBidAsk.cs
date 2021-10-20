@@ -1,4 +1,4 @@
-﻿/*
+/*
  * QUANTCONNECT.COM - Democratizing Finance, Empowering Individuals.
  * Lean Algorithmic Trading Engine v2.0. Copyright 2014 QuantConnect Corporation.
  *
@@ -13,13 +13,30 @@
  * limitations under the License.
 */
 
-using NUnit.Framework;
+using Newtonsoft.Json;
+using QuantConnect.Brokerages.Kraken.Converters;
 
-namespace QuantConnect.TemplateBrokerage.Tests
+namespace QuantConnect.Brokerages.Kraken.Models
 {
-    [TestFixture, Ignore("Not implemented")]
-    public class TemplateBrokerageAdditionalTests
+    /// <summary>
+    /// Kraken bid or ask model
+    /// </summary>
+    [JsonConverter(typeof(KrakenBidAskConverter))]
+    public class KrakenBidAsk
     {
-
+        /// <summary>
+        /// Ask or bid price
+        /// </summary>
+        public decimal Price { get; set; }
+        
+        /// <summary>
+        /// Ask or bid volume
+        /// </summary>
+        public decimal Volume { get; set; }
+        
+        /// <summary>
+        /// Ask or bid time
+        /// </summary>
+        public decimal Timestamp { get; set; }
     }
 }

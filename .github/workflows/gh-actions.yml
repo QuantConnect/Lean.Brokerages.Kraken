@@ -4,12 +4,13 @@ on:
   push:
     branches: ['*']
     tags: ['*']
-  pull_request:
-    branches: [master]
 
 jobs:
   build:
     runs-on: ubuntu-20.04
+    env:
+        KRAKEN_PUBLIC: ${{ secrets.KRAKEN_PUBLIC }}
+        KRAKEN_PRIVATE: ${{ secrets.KRAKEN_PRIVATE }}
     container:
         image: quantconnect/lean:foundation
     steps:
@@ -35,7 +36,7 @@ jobs:
         run: mv Lean ../Lean
 
       - name: Build
-        run: dotnet build /p:Configuration=Release /v:quiet /p:WarningLevel=1 QuantConnect.TemplateBrokerage.sln
+        run: dotnet build /p:Configuration=Release /v:quiet /p:WarningLevel=1 QuantConnect.KrakenBrokerage.sln
 
       - name: Run Tests
-        run: dotnet test ./QuantConnect.TemplateBrokerage.Tests/bin/Release/QuantConnect.TemplateBrokerage.Tests.dll
+        run: dotnet test ./QuantConnect.KrakenBrokerage.Tests/bin/Release/QuantConnect.KrakenBrokerage.Tests.dll

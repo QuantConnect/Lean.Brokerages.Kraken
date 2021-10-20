@@ -13,17 +13,23 @@
  * limitations under the License.
 */
 
+using System.Collections.Generic;
+using System.Linq;
 using NUnit.Framework;
 using System.Threading;
+using MoreLinq.Extensions;
+using Newtonsoft.Json.Linq;
+using QuantConnect.Brokerages.Kraken;
 using QuantConnect.Data;
 using QuantConnect.Tests;
 using QuantConnect.Logging;
 using QuantConnect.Data.Market;
+using QuantConnect.Securities;
 
-namespace QuantConnect.TemplateBrokerage.Tests
+namespace QuantConnect.Tests.Brokerages.Kraken
 {
     [TestFixture]
-    public partial class TemplateBrokerageTests
+    public partial class KrakenBrokerageTests
     {
         private static TestCaseData[] TestParameters
         {
@@ -31,10 +37,10 @@ namespace QuantConnect.TemplateBrokerage.Tests
             {
                 return new[]
                 {
-                    // valid parameters, for example
-                    new TestCaseData(Symbols.BTCUSD, Resolution.Tick, false),
-                    new TestCaseData(Symbols.BTCUSD, Resolution.Minute, false),
-                    new TestCaseData(Symbols.BTCUSD, Resolution.Second, false),
+                    new TestCaseData(Symbol.Create("EURUSD", SecurityType.Crypto, Market.Kraken), Resolution.Tick, false),
+                    new TestCaseData(Symbol.Create("BTCUSD", SecurityType.Crypto, Market.Kraken), Resolution.Tick, false),
+                    new TestCaseData(Symbol.Create("BTCUSD", SecurityType.Crypto, Market.Kraken), Resolution.Second, false),
+                    new TestCaseData(Symbol.Create("BTCUSD", SecurityType.Crypto, Market.Kraken), Resolution.Minute, false),
                 };
             }
         }
@@ -43,7 +49,7 @@ namespace QuantConnect.TemplateBrokerage.Tests
         public void StreamsData(Symbol symbol, Resolution resolution, bool throwsException)
         {
             var cancelationToken = new CancellationTokenSource();
-            var brokerage = (TemplateBrokerage)Brokerage;
+            var brokerage = (KrakenBrokerage)Brokerage;
 
             SubscriptionDataConfig[] configs;
             if (resolution == Resolution.Tick)
@@ -62,18 +68,18 @@ namespace QuantConnect.TemplateBrokerage.Tests
             {
                 ProcessFeed(brokerage.Subscribe(config, (s, e) => { }),
                     cancelationToken,
-                    (baseData) => { if (baseData != null) { Log.Trace("{baseData}"); }
+                    (baseData) => { if (baseData != null) { Log.Trace($"{baseData}"); }
                     });
             }
 
-            Thread.Sleep(20000);
+            Thread.Sleep(70000);
 
             foreach (var config in configs)
             {
                 brokerage.Unsubscribe(config);
             }
 
-            Thread.Sleep(20000);
+            Thread.Sleep(10000);
 
             cancelationToken.Cancel();
         }

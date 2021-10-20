@@ -1,4 +1,4 @@
-﻿/*
+/*
  * QUANTCONNECT.COM - Democratizing Finance, Empowering Individuals.
  * Lean Algorithmic Trading Engine v2.0. Copyright 2014 QuantConnect Corporation.
  *
@@ -13,14 +13,31 @@
  * limitations under the License.
 */
 
-namespace QuantConnect.TemplateBrokerage.ToolBox
-{
-    static class Program
-    {
-        static void Main(string[] args)
-        {
-            var downloader = new TemplateBrokerageDownloader();
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using NUnit.Framework;
+using QuantConnect.Logging;
+using QuantConnect.ToolBox.KrakenDownloader;
 
+namespace QuantConnect.Tests.Brokerages.Kraken
+{
+    public class KrakenExchangeInfoDownloaderTests
+    {
+        [Test]
+        public void GetsExchangeInfo()
+        {
+            var downloader = new KrakenExchangeInfoDownloader();
+            var tickers = downloader.Get().ToList();
+
+            Assert.IsTrue(tickers.Any());
+
+            foreach (var t in tickers)
+            {
+                Assert.IsTrue(t.StartsWith(Market.Kraken, StringComparison.OrdinalIgnoreCase));
+            }
+
+            Log.Trace("Tickers retrieved: " + tickers.Count);
         }
     }
 }
