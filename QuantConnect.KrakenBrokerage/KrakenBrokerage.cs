@@ -61,8 +61,8 @@ namespace QuantConnect.Brokerages.Kraken
         /// Constructor for brokerage
         /// </summary>
         public KrakenBrokerage()
-        : this(Config.Get("kraken-api-key"), Config.Get("kraken-api-secret"), Config.Get("kraken-verification-tier"), Config.GetInt("kraken-orderbook-depth", 10), null,
-            Composer.Instance.GetPart<IDataAggregator>() ?? Composer.Instance.GetExportedValueByTypeName<IDataAggregator>(Config.Get("data-aggregator", "QuantConnect.Data.Common.CustomDataAggregator")), null)
+        : this(Config.Get("kraken-api-key"), Config.Get("kraken-api-secret"), Config.Get("kraken-verification-tier"),
+            Config.GetInt("kraken-orderbook-depth", 10), null, Composer.Instance.GetPart<IDataAggregator>(), null)
         {
         }
 
