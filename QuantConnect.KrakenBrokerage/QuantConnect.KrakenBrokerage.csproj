@@ -6,6 +6,7 @@
     <Product>QuantConnect.KrakenBrokerage</Product>
     <RootNamespace>QuantConnect.KrakenBrokerage</RootNamespace>
     <AssemblyTitle>QuantConnect.KrakenBrokerage</AssemblyTitle>
+    <AssemblyName>QuantConnect.KrakenBrokerage</AssemblyName>
     <OutputType>Library</OutputType>
     <OutputPath>bin\$(Configuration)\</OutputPath>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
