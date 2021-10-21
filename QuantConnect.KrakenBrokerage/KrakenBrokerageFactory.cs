@@ -83,11 +83,16 @@ namespace QuantConnect.Brokerages.Kraken
                 }
             }
 
+            if (!job.BrokerageData.TryGetValue("kraken-orderbook-depth", out var orderDepth))
+            {
+                orderDepth = BrokerageData["kraken-orderbook-depth"];
+            }
+
             var brokerage = new KrakenBrokerage(
                 job.BrokerageData["kraken-api-key"],
                 job.BrokerageData["kraken-api-secret"],
                 job.BrokerageData["kraken-verification-tier"],
-                job.BrokerageData["kraken-orderbook-depth"].ToInt32(),
+                orderDepth.ToInt32(),
                 algorithm,
                 Composer.Instance.GetExportedValueByTypeName<IDataAggregator>(Config.Get("data-aggregator", "QuantConnect.Lean.Engine.DataFeeds.AggregationManager")),
                 job);
