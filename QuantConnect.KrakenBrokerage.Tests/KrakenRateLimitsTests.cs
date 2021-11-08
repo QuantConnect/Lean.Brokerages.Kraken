@@ -43,11 +43,11 @@ namespace QuantConnect.Tests.Brokerages.Kraken
             watch.Stop();
             if (shouldExceed)
             {
-                Assert.Greater(watch.ElapsedMilliseconds, 19000);
+                Assert.Greater(watch.ElapsedMilliseconds, 100);
             }
             else
             {
-                Assert.Less(watch.ElapsedMilliseconds, 20000);
+                Assert.Less(watch.ElapsedMilliseconds, 100);
                 Assert.AreEqual(requestNumber, rateLimiter.GetRateLimitCounter);
             }
         }
@@ -59,7 +59,7 @@ namespace QuantConnect.Tests.Brokerages.Kraken
             Log.Trace("");
             Log.Trace("Order Limit test");
             Log.Trace("");
-            var rateLimiter = new KrakenBrokerageRateLimits(tier);
+            var rateLimiter = new TestKrakenBrokerageRateLimits(tier);
 
             TestDelegate test = () =>
             {
@@ -87,7 +87,7 @@ namespace QuantConnect.Tests.Brokerages.Kraken
             Log.Trace("");
             Log.Trace("Cancel Order Limit test");
             Log.Trace("");
-            var rateLimiter = new KrakenBrokerageRateLimits(tier);
+            var rateLimiter = new TestKrakenBrokerageRateLimits(tier);
             var watch = System.Diagnostics.Stopwatch.StartNew();
             
             for (int i = 0; i < requestNumber; i++)
@@ -98,11 +98,11 @@ namespace QuantConnect.Tests.Brokerages.Kraken
             watch.Stop();
             if (shouldExceed)
             {
-                Assert.Greater(watch.ElapsedMilliseconds, 19000);
+                Assert.Greater(watch.ElapsedMilliseconds, 100);
             }
             else
             {
-                Assert.Less(watch.ElapsedMilliseconds, 20000);
+                Assert.Less(watch.ElapsedMilliseconds, 100);
             }
         }
         
@@ -123,7 +123,7 @@ namespace QuantConnect.Tests.Brokerages.Kraken
                 rateLimiter.RateLimitCheck();
             }
 
-            await Task.Delay(decaySeconds * 1000 + 500); // 500ms so update timer have time to run
+            await Task.Delay(decaySeconds * 100); // 500ms so update timer have time to run
 
             Assert.AreEqual(rateLimiter.GetRateLimitCounter, requestNumber - decaySeconds * multiplier);
         }
@@ -136,7 +136,7 @@ namespace QuantConnect.Tests.Brokerages.Kraken
             Log.Trace("Cancel Decay Limit test");
             Log.Trace("");
             
-            var rateLimiter = new KrakenBrokerageRateLimits(tier);
+            var rateLimiter = new TestKrakenBrokerageRateLimits(tier);
             
             for (int i = 0; i < requestNumber; i++)
             {
@@ -144,7 +144,7 @@ namespace QuantConnect.Tests.Brokerages.Kraken
                 rateLimiter.CancelOrderRateLimitCheck("XXBTZUSD", DateTime.UtcNow - TimeSpan.FromSeconds(1));
             }
 
-            await Task.Delay(decaySeconds * 1000 + 500); // 500ms so update timer have time to run
+            await Task.Delay(decaySeconds * 100 + 500); // 500ms so update timer have time to run
 
             var watch = System.Diagnostics.Stopwatch.StartNew();
 
@@ -154,11 +154,11 @@ namespace QuantConnect.Tests.Brokerages.Kraken
 
             if (shouldExceed)
             {
-                Assert.Greater(watch.ElapsedMilliseconds, 19000);
+                Assert.Greater(watch.ElapsedMilliseconds, 100);
             }
             else
             {
-                Assert.Less(watch.ElapsedMilliseconds, 20000);
+                Assert.Less(watch.ElapsedMilliseconds, 100);
             }
         }
         
@@ -279,8 +279,17 @@ namespace QuantConnect.Tests.Brokerages.Kraken
         private class TestKrakenBrokerageRateLimits : KrakenBrokerageRateLimits
         {
             public decimal GetRateLimitCounter => RateLimitCounter;
-            public TestKrakenBrokerageRateLimits(string verificationTier) : base(verificationTier)
+            public TestKrakenBrokerageRateLimits(string verificationTier) : base(verificationTier, 200)
             {
+            }
+
+            /// <summary>
+            /// Returns the gate limit wait time
+            /// </summary>
+            /// <remarks>Useful for faster testing</remarks>
+            protected override TimeSpan GetRateLimitedWait()
+            {
+                return TimeSpan.FromMilliseconds(100);
             }
         }
     }
