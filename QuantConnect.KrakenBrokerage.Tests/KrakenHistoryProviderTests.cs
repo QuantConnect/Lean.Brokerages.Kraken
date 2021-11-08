@@ -62,7 +62,7 @@ namespace QuantConnect.Tests.Brokerages.Kraken
 
                 var history = historyProvider.GetHistory(requests, TimeZones.Utc);
 
-                foreach (var slice in history)
+                foreach (var slice in history.Take(10))
                 {
                     var bar = slice.Bars[symbol];
 
