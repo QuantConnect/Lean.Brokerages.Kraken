@@ -43,7 +43,7 @@ namespace QuantConnect.Tests.Brokerages.Kraken
             watch.Stop();
             if (shouldExceed)
             {
-                Assert.Greater(watch.ElapsedMilliseconds, 100);
+                Assert.GreaterOrEqual(watch.ElapsedMilliseconds, 100);
             }
             else
             {
@@ -98,7 +98,7 @@ namespace QuantConnect.Tests.Brokerages.Kraken
             watch.Stop();
             if (shouldExceed)
             {
-                Assert.Greater(watch.ElapsedMilliseconds, 100);
+                Assert.GreaterOrEqual(watch.ElapsedMilliseconds, 100);
             }
             else
             {
@@ -154,7 +154,7 @@ namespace QuantConnect.Tests.Brokerages.Kraken
 
             if (shouldExceed)
             {
-                Assert.Greater(watch.ElapsedMilliseconds, 100);
+                Assert.GreaterOrEqual(watch.ElapsedMilliseconds, 100);
             }
             else
             {
