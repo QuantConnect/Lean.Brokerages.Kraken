@@ -30,7 +30,6 @@ namespace QuantConnect.Brokerages.Kraken
     public class KrakenBrokerageRateLimits : IDisposable
     {
         private readonly Timer _1sRateLimitTimer;
-        private readonly TimeSpan _rateLimitedWait;
         private readonly CancellationTokenSource _cancellationTokenSource;
         private readonly Dictionary<Symbol, int> _rateLimitsOrderPerSymbolDictionary;
         private readonly Dictionary<string, decimal> _rateLimitsCancelPerSymbolDictionary;
@@ -70,10 +69,10 @@ namespace QuantConnect.Brokerages.Kraken
         /// Choosing right rate limits based on verification tier
         /// </summary>
         /// <param name="verificationTier">Starter, Intermediate, Pro</param>
-        public KrakenBrokerageRateLimits(string verificationTier)
+        /// <param name="timerInterval">Rate limit timer interval, useful for testing</param>
+        public KrakenBrokerageRateLimits(string verificationTier, int timerInterval = 1000)
         {
-            _1sRateLimitTimer = new Timer(1000);
-            _rateLimitedWait = TimeSpan.FromSeconds(20);
+            _1sRateLimitTimer = new Timer(timerInterval);
             _cancellationTokenSource = new CancellationTokenSource();
             _rateLimitsOrderPerSymbolDictionary = new Dictionary<Symbol, int>();
             _rateLimitsCancelPerSymbolDictionary = new Dictionary<string, decimal>();
@@ -125,9 +124,9 @@ namespace QuantConnect.Brokerages.Kraken
             if (isExceeded)
             {
                 Message?.Invoke(this, new BrokerageMessageEvent(BrokerageMessageType.Warning, "RestRateLimit",
-                    $"The API request has been rate limited. To avoid this message, please reduce the frequency of API calls. Will wait {_rateLimitedWait}..."));
+                    $"The API request has been rate limited. To avoid this message, please reduce the frequency of API calls. Will wait {GetRateLimitedWait()}..."));
 
-                _cancellationTokenSource.Token.WaitHandle.WaitOne(_rateLimitedWait);
+                _cancellationTokenSource.Token.WaitHandle.WaitOne(GetRateLimitedWait());
             }
         }
 
@@ -197,10 +196,19 @@ namespace QuantConnect.Brokerages.Kraken
             if (currentCancelOrderRate >= _rateLimitsDictionary[KrakenRateLimitType.Cancel])
             {
                 Message?.Invoke(this, new BrokerageMessageEvent(BrokerageMessageType.Warning, "CancelRateLimit",
-                    $"The cancel order API request has been rate limited. To avoid this message, please reduce the frequency of cancel order API calls. Will wait {_rateLimitedWait}..."));
+                    $"The cancel order API request has been rate limited. To avoid this message, please reduce the frequency of cancel order API calls. Will wait {GetRateLimitedWait()}..."));
 
-                _cancellationTokenSource.Token.WaitHandle.WaitOne(_rateLimitedWait);
+                _cancellationTokenSource.Token.WaitHandle.WaitOne(GetRateLimitedWait());
             }
+        }
+
+        /// <summary>
+        /// Returns the gate limit wait time
+        /// </summary>
+        /// <remarks>Useful for faster testing</remarks>
+        protected virtual TimeSpan GetRateLimitedWait()
+        {
+            return TimeSpan.FromSeconds(20);
         }
 
         private int GetRateLimitWeightCancelOrder(DateTime time)

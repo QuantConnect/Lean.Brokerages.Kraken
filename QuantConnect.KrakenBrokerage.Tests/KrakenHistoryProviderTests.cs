@@ -61,11 +61,11 @@ namespace QuantConnect.Tests.Brokerages.Kraken
                 };
 
                 var history = historyProvider.GetHistory(requests, TimeZones.Utc);
-
+                
                 foreach (var slice in history)
                 {
                     var bar = slice.Bars[symbol];
-
+                    
                     Log.Trace("{0}: {1} - O={2}, H={3}, L={4}, C={5}", bar.Time, bar.Symbol, bar.Open, bar.High, bar.Low, bar.Close);
                 }
 
@@ -144,6 +144,12 @@ namespace QuantConnect.Tests.Brokerages.Kraken
                 return new[]
                 {
                     new TestCaseData(Symbol.Create("ETHUSD", SecurityType.Crypto, Market.Kraken), Resolution.Second, Time.OneMinute),
+                    
+                    // invalid security type, no error, empty result"
+                    new TestCaseData(Symbols.AAPL, Resolution.Daily, TimeSpan.FromDays(15)),
+                    
+                    // invalid period, no error, empty result
+                    new TestCaseData(Symbols.EURUSD, Resolution.Daily, TimeSpan.FromDays(-15)),
                 };
             }
         }
@@ -154,14 +160,8 @@ namespace QuantConnect.Tests.Brokerages.Kraken
             {
                 return new[]
                 {
-                    // invalid period, no error, empty result
-                    new TestCaseData(Symbols.EURUSD, Resolution.Daily, TimeSpan.FromDays(-15), false),
-
                     // invalid symbol, throws "System.ArgumentException : Unknown symbol: XYZ"
-                    new TestCaseData(Symbol.Create("XYZ", SecurityType.Crypto, Market.Kraken), Resolution.Daily, TimeSpan.FromDays(15), true),
-
-                    // invalid security type, no error, empty result"
-                    new TestCaseData(Symbols.AAPL, Resolution.Daily, TimeSpan.FromDays(15), false),
+                    new TestCaseData(Symbol.Create("XYZ", SecurityType.Crypto, Market.Kraken), Resolution.Daily, TimeSpan.FromDays(15), true)
                 };
             }
         }

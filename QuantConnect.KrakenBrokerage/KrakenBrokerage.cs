@@ -53,7 +53,7 @@ namespace QuantConnect.Brokerages.Kraken
         private const string _wsUrl = "wss://ws.kraken.com";
         private const string _wsAuthUrl = "wss://ws-auth.kraken.com";
 
-        private readonly RateGate _webSocketRateLimiter = new RateGate(50, TimeSpan.FromSeconds(5));
+        private readonly RateGate _webSocketRateLimiter = new RateGate(25, TimeSpan.FromSeconds(2));
 
         private readonly ConcurrentDictionary<int, decimal> _fills = new ConcurrentDictionary<int, decimal>();
 

@@ -13,18 +13,12 @@
  * limitations under the License.
 */
 
-using System.Collections.Generic;
-using System.Linq;
 using NUnit.Framework;
 using System.Threading;
-using MoreLinq.Extensions;
-using Newtonsoft.Json.Linq;
 using QuantConnect.Brokerages.Kraken;
 using QuantConnect.Data;
-using QuantConnect.Tests;
 using QuantConnect.Logging;
 using QuantConnect.Data.Market;
-using QuantConnect.Securities;
 
 namespace QuantConnect.Tests.Brokerages.Kraken
 {
@@ -37,16 +31,16 @@ namespace QuantConnect.Tests.Brokerages.Kraken
             {
                 return new[]
                 {
-                    new TestCaseData(Symbol.Create("EURUSD", SecurityType.Crypto, Market.Kraken), Resolution.Tick, false),
-                    new TestCaseData(Symbol.Create("BTCUSD", SecurityType.Crypto, Market.Kraken), Resolution.Tick, false),
-                    new TestCaseData(Symbol.Create("BTCUSD", SecurityType.Crypto, Market.Kraken), Resolution.Second, false),
-                    new TestCaseData(Symbol.Create("BTCUSD", SecurityType.Crypto, Market.Kraken), Resolution.Minute, false),
+                    new TestCaseData(Symbol.Create("EURUSD", SecurityType.Crypto, Market.Kraken), Resolution.Tick, 10000, false),
+                    new TestCaseData(Symbol.Create("BTCUSD", SecurityType.Crypto, Market.Kraken), Resolution.Tick, 10000, false),
+                    new TestCaseData(Symbol.Create("BTCUSD", SecurityType.Crypto, Market.Kraken), Resolution.Second, 10000, false),
+                    new TestCaseData(Symbol.Create("BTCUSD", SecurityType.Crypto, Market.Kraken), Resolution.Minute, 60000, false),
                 };
             }
         }
 
         [Test, TestCaseSource(nameof(TestParameters))]
-        public void StreamsData(Symbol symbol, Resolution resolution, bool throwsException)
+        public void StreamsData(Symbol symbol, Resolution resolution, int waitMilliseconds, bool throwsException)
         {
             var cancelationToken = new CancellationTokenSource();
             var brokerage = (KrakenBrokerage)Brokerage;
@@ -72,14 +66,14 @@ namespace QuantConnect.Tests.Brokerages.Kraken
                     });
             }
 
-            Thread.Sleep(70000);
+            Thread.Sleep(waitMilliseconds);
 
             foreach (var config in configs)
             {
                 brokerage.Unsubscribe(config);
             }
 
-            Thread.Sleep(10000);
+            Thread.Sleep(5000);
 
             cancelationToken.Cancel();
         }
