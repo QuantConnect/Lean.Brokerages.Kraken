@@ -179,7 +179,7 @@ namespace QuantConnect.Tests.Brokerages.Kraken
             Assert.AreEqual(0, before.Count());
 
             PlaceOrderWaitForStatus(new MarketOrder(Symbol, GetDefaultQuantity(), DateTime.Now));
-            Thread.Sleep(3000);
+            Thread.Sleep(2000);
 
             var after = Brokerage.GetAccountHoldings();
             Assert.AreEqual(0, after.Count());

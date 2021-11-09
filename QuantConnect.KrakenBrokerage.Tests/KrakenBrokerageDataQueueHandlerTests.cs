@@ -13,18 +13,12 @@
  * limitations under the License.
 */
 
-using System.Collections.Generic;
-using System.Linq;
 using NUnit.Framework;
 using System.Threading;
-using MoreLinq.Extensions;
-using Newtonsoft.Json.Linq;
 using QuantConnect.Brokerages.Kraken;
 using QuantConnect.Data;
-using QuantConnect.Tests;
 using QuantConnect.Logging;
 using QuantConnect.Data.Market;
-using QuantConnect.Securities;
 
 namespace QuantConnect.Tests.Brokerages.Kraken
 {
@@ -79,7 +73,7 @@ namespace QuantConnect.Tests.Brokerages.Kraken
                 brokerage.Unsubscribe(config);
             }
 
-            Thread.Sleep(10000);
+            Thread.Sleep(5000);
 
             cancelationToken.Cancel();
         }

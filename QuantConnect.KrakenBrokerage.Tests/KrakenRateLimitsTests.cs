@@ -123,7 +123,7 @@ namespace QuantConnect.Tests.Brokerages.Kraken
                 rateLimiter.RateLimitCheck();
             }
 
-            await Task.Delay(decaySeconds * 100); // 500ms so update timer have time to run
+            await Task.Delay(decaySeconds * 100 + 50); // 50ms so update timer have time to run
 
             Assert.AreEqual(rateLimiter.GetRateLimitCounter, requestNumber - decaySeconds * multiplier);
         }
@@ -144,7 +144,7 @@ namespace QuantConnect.Tests.Brokerages.Kraken
                 rateLimiter.CancelOrderRateLimitCheck("XXBTZUSD", DateTime.UtcNow - TimeSpan.FromSeconds(1));
             }
 
-            await Task.Delay(decaySeconds * 100 + 500); // 500ms so update timer have time to run
+            await Task.Delay(decaySeconds * 100 + 50); // 50ms so update timer have time to run
 
             var watch = System.Diagnostics.Stopwatch.StartNew();
 
@@ -279,7 +279,7 @@ namespace QuantConnect.Tests.Brokerages.Kraken
         private class TestKrakenBrokerageRateLimits : KrakenBrokerageRateLimits
         {
             public decimal GetRateLimitCounter => RateLimitCounter;
-            public TestKrakenBrokerageRateLimits(string verificationTier) : base(verificationTier, 200)
+            public TestKrakenBrokerageRateLimits(string verificationTier) : base(verificationTier, 100)
             {
             }
 
