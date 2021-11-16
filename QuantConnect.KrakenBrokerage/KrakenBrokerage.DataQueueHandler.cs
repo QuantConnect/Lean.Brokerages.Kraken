@@ -436,8 +436,9 @@ namespace QuantConnect.Brokerages.Kraken
         /// Should be empty as handled in <see cref="BrokerageMultiWebSocketSubscriptionManager"/>
         /// </summary>
         /// <param name="symbols"></param>
-        public override void Subscribe(IEnumerable<Symbol> symbols)
+        protected override bool Subscribe(IEnumerable<Symbol> symbols)
         {
+            return true;
         }
 
         #endregion
