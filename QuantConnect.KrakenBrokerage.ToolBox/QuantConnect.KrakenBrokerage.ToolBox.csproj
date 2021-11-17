@@ -1,6 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
+        <Configuration Condition=" '$(Configuration)' == '' ">Release</Configuration>
+        <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
         <OutputType>Exe</OutputType>
         <TargetFramework>net5.0</TargetFramework>
 
@@ -11,7 +13,8 @@
         <RootNamespace>QuantConnect.KrakenBrokerage.ToolBox</RootNamespace>
         <AssemblyTitle>QuantConnect.KrakenBrokerage.ToolBox</AssemblyTitle>
         <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
-        <PackageId>QuantConnect.KrakenBrokerage.ToolBox</PackageId>
+        <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+        <Description>QuantConnect LEAN Kraken Brokerage: Kraken Brokerage toolbox plugin for Lean</Description>
     </PropertyGroup>
 
     <ItemGroup>
@@ -19,5 +22,15 @@
       <ProjectReference Include="..\..\Lean\ToolBox\QuantConnect.ToolBox.csproj" />
       <ProjectReference Include="..\QuantConnect.KrakenBrokerage\QuantConnect.KrakenBrokerage.csproj" />
     </ItemGroup>
-
+    <Target Name="_ExactProjectReferencesVersion" AfterTargets="_GetProjectReferenceVersions">
+        <ItemGroup>
+            <_ProjectReferencesWithExactVersions Include="@(_ProjectReferencesWithVersions)">
+                <ProjectVersion>[%(_ProjectReferencesWithVersions.ProjectVersion), $([MSBuild]::Add($([System.Text.RegularExpressions.Regex]::Match('%(_ProjectReferencesWithVersions.ProjectVersion)', '^\d+').Value), '1')))</ProjectVersion>
+            </_ProjectReferencesWithExactVersions>
+        </ItemGroup>
+        <ItemGroup>
+            <_ProjectReferencesWithVersions Remove="@(_ProjectReferencesWithVersions)" />
+            <_ProjectReferencesWithVersions Include="@(_ProjectReferencesWithExactVersions)" />
+        </ItemGroup>
+    </Target>
 </Project>
