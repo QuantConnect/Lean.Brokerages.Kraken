@@ -27,20 +27,6 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Newtonsoft.Json" Version="12.0.3" />
+    <PackageReference Include="QuantConnect.Brokerages" Version="2.5.*" />
   </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\..\Lean\Brokerages\QuantConnect.Brokerages.csproj" />
-    <ProjectReference Include="..\..\Lean\Common\QuantConnect.csproj" />
-  </ItemGroup>
-  <Target Name="_ExactProjectReferencesVersion" AfterTargets="_GetProjectReferenceVersions">
-    <ItemGroup>
-      <_ProjectReferencesWithExactVersions Include="@(_ProjectReferencesWithVersions)">
-        <ProjectVersion>(, $([MSBuild]::Add($([System.Text.RegularExpressions.Regex]::Match('%(_ProjectReferencesWithVersions.ProjectVersion)', '^\d+').Value), '1')))</ProjectVersion>
-      </_ProjectReferencesWithExactVersions>
-    </ItemGroup>
-    <ItemGroup>
-      <_ProjectReferencesWithVersions Remove="@(_ProjectReferencesWithVersions)" />
-      <_ProjectReferencesWithVersions Include="@(_ProjectReferencesWithExactVersions)" />
-    </ItemGroup>
-  </Target>
 </Project>
