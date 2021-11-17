@@ -35,7 +35,7 @@
   <Target Name="_ExactProjectReferencesVersion" AfterTargets="_GetProjectReferenceVersions">
     <ItemGroup>
       <_ProjectReferencesWithExactVersions Include="@(_ProjectReferencesWithVersions)">
-        <ProjectVersion>[$([System.Text.RegularExpressions.Regex]::Match('%(_ProjectReferencesWithVersions.ProjectVersion)', '^\d+.\d+').Value).0, $([MSBuild]::Add($([System.Text.RegularExpressions.Regex]::Match('%(_ProjectReferencesWithVersions.ProjectVersion)', '^\d+').Value), '1')))</ProjectVersion>
+        <ProjectVersion>(, $([MSBuild]::Add($([System.Text.RegularExpressions.Regex]::Match('%(_ProjectReferencesWithVersions.ProjectVersion)', '^\d+').Value), '1')))</ProjectVersion>
       </_ProjectReferencesWithExactVersions>
     </ItemGroup>
     <ItemGroup>
