@@ -5,8 +5,6 @@
         <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
         <OutputType>Exe</OutputType>
         <TargetFramework>net5.0</TargetFramework>
-
-        <IsPackable>false</IsPackable>
         <Copyright>Copyright ©  2021</Copyright>
         <OutputPath>bin\$(Configuration)\</OutputPath>
         <Product>QuantConnect.KrakenBrokerage.ToolBox</Product>
@@ -14,9 +12,12 @@
         <AssemblyTitle>QuantConnect.KrakenBrokerage.ToolBox</AssemblyTitle>
         <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
         <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+        <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
         <Description>QuantConnect LEAN Kraken Brokerage: Kraken Brokerage toolbox plugin for Lean</Description>
     </PropertyGroup>
-
+    <ItemGroup>
+        <Compile Include="..\..\Lean\Common\Properties\SharedAssemblyInfo.cs" Link="Properties\SharedAssemblyInfo.cs" />
+    </ItemGroup>
     <ItemGroup>
       <ProjectReference Include="..\..\Lean\Common\QuantConnect.csproj" />
       <ProjectReference Include="..\..\Lean\ToolBox\QuantConnect.ToolBox.csproj" />
@@ -25,7 +26,7 @@
     <Target Name="_ExactProjectReferencesVersion" AfterTargets="_GetProjectReferenceVersions">
         <ItemGroup>
             <_ProjectReferencesWithExactVersions Include="@(_ProjectReferencesWithVersions)">
-                <ProjectVersion>[%(_ProjectReferencesWithVersions.ProjectVersion), $([MSBuild]::Add($([System.Text.RegularExpressions.Regex]::Match('%(_ProjectReferencesWithVersions.ProjectVersion)', '^\d+').Value), '1')))</ProjectVersion>
+                <ProjectVersion>[$([System.Text.RegularExpressions.Regex]::Match('%(_ProjectReferencesWithVersions.ProjectVersion)', '^\d+.\d+').Value).0, $([MSBuild]::Add($([System.Text.RegularExpressions.Regex]::Match('%(_ProjectReferencesWithVersions.ProjectVersion)', '^\d+').Value), '1')))</ProjectVersion>
             </_ProjectReferencesWithExactVersions>
         </ItemGroup>
         <ItemGroup>
