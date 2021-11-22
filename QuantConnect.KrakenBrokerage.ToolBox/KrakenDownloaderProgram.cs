@@ -53,7 +53,7 @@ namespace QuantConnect.ToolBox.KrakenDataDownloader
                 {
                     // Download data
                     var pairObject = Symbol.Create(pair, SecurityType.Crypto, Market.Kraken);
-                    var data = downloader.Get(pairObject, castResolution == Resolution.Second ? Resolution.Tick : castResolution, startDate, endDate);
+                    var data = downloader.Get(new DataDownloaderGetParameters(pairObject, castResolution == Resolution.Second ? Resolution.Tick : castResolution, startDate, endDate));
                     var bars = data.Cast<TradeBar>().ToList();
                     
                     // Write data
