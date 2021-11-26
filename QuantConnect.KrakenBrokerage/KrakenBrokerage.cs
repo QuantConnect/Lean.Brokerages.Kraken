@@ -77,7 +77,7 @@ namespace QuantConnect.Brokerages.Kraken
         public KrakenBrokerage(string apiKey, string apiSecret, string verificationTier, int orderBookDepth, IAlgorithm algorithm, IDataAggregator aggregator, LiveNodePacket job)
             : base("Kraken")
         {
-            Initialze(apiKey, apiSecret, verificationTier, orderBookDepth, algorithm, aggregator, job);
+            Initialize(apiKey, apiSecret, verificationTier, orderBookDepth, algorithm, aggregator, job);
         }
 
         /// <summary>
@@ -437,13 +437,13 @@ namespace QuantConnect.Brokerages.Kraken
         /// <param name="algorithm"><see cref="IAlgorithm"/> instance</param>
         /// <param name="aggregator"><see cref="IDataAggregator"/> instance</param>
         /// <param name="job">Lean <see cref="LiveNodePacket"/></param>
-        protected void Initialze(string apiKey, string apiSecret, string verificationTier, int orderBookDepth, IAlgorithm algorithm, IDataAggregator aggregator, LiveNodePacket job)
+        protected void Initialize(string apiKey, string apiSecret, string verificationTier, int orderBookDepth, IAlgorithm algorithm, IDataAggregator aggregator, LiveNodePacket job)
         {
             if (IsInitialized)
             {
                 return;
             }
-            base.Initalize(_wsAuthUrl, new KrakenWebSocketWrapper(null), new RestClient(_apiUrl), apiKey, apiSecret);
+            base.Initialize(_wsAuthUrl, new KrakenWebSocketWrapper(null), new RestClient(_apiUrl), apiKey, apiSecret);
             _algorithm = algorithm;
             _job = job;
             _aggregator = aggregator;
