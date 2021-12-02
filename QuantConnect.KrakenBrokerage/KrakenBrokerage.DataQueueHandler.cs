@@ -371,7 +371,7 @@ namespace QuantConnect.Brokerages.Kraken
 
         private bool CanSubscribe(Symbol symbol)
         {
-            if (symbol.Value.Contains("UNIVERSE") || !_symbolMapper.IsKnownLeanSymbol(symbol))
+            if (symbol.Value.Contains("UNIVERSE") || !_symbolMapper.IsKnownLeanSymbol(symbol) || symbol.ID.Market != Market.Kraken)
             {
                 return false;
             }
