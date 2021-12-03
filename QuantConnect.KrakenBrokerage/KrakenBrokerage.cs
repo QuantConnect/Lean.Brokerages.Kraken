@@ -41,12 +41,12 @@ namespace QuantConnect.Brokerages.Kraken
     [BrokerageFactory(typeof(KrakenBrokerageFactory))]
     public partial class KrakenBrokerage : BaseWebsocketsBrokerage, IDataQueueHandler
     {
-        private readonly IAlgorithm _algorithm;
-        private readonly ISecurityProvider _securityProvider;
-        private readonly IDataAggregator _aggregator;
+        private IAlgorithm _algorithm;
+        private ISecurityProvider _securityProvider;
+        private IDataAggregator _aggregator;
         private readonly KrakenSymbolMapper _symbolMapper = new KrakenSymbolMapper();
         private LiveNodePacket _job;
-        private readonly KrakenBrokerageRateLimits _rateLimiter;
+        private KrakenBrokerageRateLimits _rateLimiter;
 
         private const int MaximumSymbolsPerConnection = 50;
         private const string _apiUrl = "https://api.kraken.com";
@@ -60,9 +60,7 @@ namespace QuantConnect.Brokerages.Kraken
         /// <summary>
         /// Constructor for brokerage
         /// </summary>
-        public KrakenBrokerage()
-        : this(Config.Get("kraken-api-key"), Config.Get("kraken-api-secret"), Config.Get("kraken-verification-tier"),
-            Config.GetInt("kraken-orderbook-depth", 10), null, Composer.Instance.GetPart<IDataAggregator>(), null)
+        public KrakenBrokerage() : base("Kraken")
         {
         }
 
@@ -77,32 +75,9 @@ namespace QuantConnect.Brokerages.Kraken
         /// <param name="aggregator"><see cref="IDataAggregator"/> instance</param>
         /// <param name="job">Lean <see cref="LiveNodePacket"/></param>
         public KrakenBrokerage(string apiKey, string apiSecret, string verificationTier, int orderBookDepth, IAlgorithm algorithm, IDataAggregator aggregator, LiveNodePacket job)
-            : base(_wsAuthUrl, new KrakenWebSocketWrapper(null), new RestClient(_apiUrl), apiKey, apiSecret, "Kraken")
+            : base("Kraken")
         {
-            _algorithm = algorithm;
-            _job = job;
-            _aggregator = aggregator;
-            _securityProvider = algorithm?.Portfolio;
-            _orderBookDepth = orderBookDepth;
-            _orderBookChannel = $"book-{_orderBookDepth}";
-
-            _rateLimiter = new KrakenBrokerageRateLimits(verificationTier);
-            _rateLimiter.Message += (_, e) => OnMessage(e);
-
-            SubscriptionManager = new BrokerageMultiWebSocketSubscriptionManager(
-                _wsUrl,
-                MaximumSymbolsPerConnection,
-                0,
-                null,
-                () => new KrakenWebSocketWrapper(null),
-                Subscribe,
-                Unsubscribe,
-                OnDataMessage,
-                TimeSpan.Zero, 
-                _webSocketRateLimiter);
-            
-            WebSocket.Open += (sender, args) => { SubscribeAuth(); };
-
+            Initialize(apiKey, apiSecret, verificationTier, orderBookDepth, algorithm, aggregator, job);
         }
 
         /// <summary>
@@ -450,6 +425,48 @@ namespace QuantConnect.Brokerages.Kraken
             {
                 yield return baseData;
             }
+        }
+
+        /// <summary>
+        /// Initializes the instance of the class
+        /// </summary>
+        /// <param name="apiKey">Api key</param>
+        /// <param name="apiSecret">Api secret</param>
+        /// <param name="verificationTier">Account verification tier</param>
+        /// <param name="orderBookDepth">Desired depth of orderbook that will receive DataQueueHandler</param>
+        /// <param name="algorithm"><see cref="IAlgorithm"/> instance</param>
+        /// <param name="aggregator"><see cref="IDataAggregator"/> instance</param>
+        /// <param name="job">Lean <see cref="LiveNodePacket"/></param>
+        protected void Initialize(string apiKey, string apiSecret, string verificationTier, int orderBookDepth, IAlgorithm algorithm, IDataAggregator aggregator, LiveNodePacket job)
+        {
+            if (IsInitialized)
+            {
+                return;
+            }
+            base.Initialize(_wsAuthUrl, new KrakenWebSocketWrapper(null), new RestClient(_apiUrl), apiKey, apiSecret);
+            _algorithm = algorithm;
+            _job = job;
+            _aggregator = aggregator;
+            _securityProvider = algorithm?.Portfolio;
+            _orderBookDepth = orderBookDepth;
+            _orderBookChannel = $"book-{_orderBookDepth}";
+
+            _rateLimiter = new KrakenBrokerageRateLimits(verificationTier);
+            _rateLimiter.Message += (_, e) => OnMessage(e);
+
+            SubscriptionManager = new BrokerageMultiWebSocketSubscriptionManager(
+                _wsUrl,
+                MaximumSymbolsPerConnection,
+                0,
+                null,
+                () => new KrakenWebSocketWrapper(null),
+                Subscribe,
+                Unsubscribe,
+                OnDataMessage,
+                TimeSpan.Zero,
+                _webSocketRateLimiter);
+
+            WebSocket.Open += (sender, args) => { SubscribeAuth(); };
         }
 
         /// <summary>

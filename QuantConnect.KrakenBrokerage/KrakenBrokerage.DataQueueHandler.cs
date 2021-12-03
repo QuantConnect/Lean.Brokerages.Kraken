@@ -20,6 +20,7 @@ using System.Linq;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using QuantConnect.Brokerages.Kraken.Models;
+using QuantConnect.Configuration;
 using QuantConnect.Data;
 using QuantConnect.Data.Market;
 using QuantConnect.Logging;
@@ -43,8 +44,8 @@ namespace QuantConnect.Brokerages.Kraken
         
         private readonly ConcurrentDictionary<Symbol, DefaultOrderBook> _orderBooks = new ConcurrentDictionary<Symbol, DefaultOrderBook>();
 
-        private readonly string _orderBookChannel;
-        private readonly int _orderBookDepth; // Valid Options are: 10, 25, 100, 500, 1000
+        private string _orderBookChannel;
+        private int _orderBookDepth; // Valid Options are: 10, 25, 100, 500, 1000
 
         #region Aggregator Update
 
@@ -57,10 +58,9 @@ namespace QuantConnect.Brokerages.Kraken
         public IEnumerator<BaseData> Subscribe(SubscriptionDataConfig dataConfig, EventHandler newDataAvailableHandler)
         {
             var symbol = dataConfig.Symbol;
-            if (symbol.Value.Contains("UNIVERSE") ||
-                !_symbolMapper.IsKnownLeanSymbol(symbol))
+            if (!CanSubscribe(symbol))
             {
-                return Enumerable.Empty<BaseData>().GetEnumerator();
+                return null;
             }
 
             var enumerator = _aggregator.Add(dataConfig, newDataAvailableHandler);
@@ -368,7 +368,16 @@ namespace QuantConnect.Brokerages.Kraken
                 _aggregator.Update(tick);
             }
         }
-        
+
+        private bool CanSubscribe(Symbol symbol)
+        {
+            if (symbol.Value.Contains("UNIVERSE") || !_symbolMapper.IsKnownLeanSymbol(symbol) || symbol.ID.Market != Market.Kraken)
+            {
+                return false;
+            }
+            return true;
+        }
+
         private void OnBestBidAskUpdated(object sender, BestBidAskUpdatedEventArgs e)
         {
             EmitQuoteTick(e.Symbol, e.BestBidPrice, e.BestBidSize, e.BestAskPrice, e.BestAskSize);
@@ -399,6 +408,25 @@ namespace QuantConnect.Brokerages.Kraken
         /// <param name="job">Job we're subscribing for</param>
         public void SetJob(LiveNodePacket job)
         {
+            if (!job.BrokerageData.TryGetValue("kraken-orderbook-depth", out var orderDepth))
+            {
+                throw new ArgumentException($"KrakenBrokerage.SetJob(): missing value -- kraken-orderbook-depth");
+            }
+            var aggregator = Composer.Instance.GetExportedValueByTypeName<IDataAggregator>(Config.Get("data-aggregator", "QuantConnect.Lean.Engine.DataFeeds.AggregationManager"));
+
+            Initialize(
+                job.BrokerageData["kraken-api-key"],
+                job.BrokerageData["kraken-api-secret"],
+                job.BrokerageData["kraken-verification-tier"],
+                orderDepth.ToInt32(),
+                null,
+                aggregator,
+                job);
+
+            if (!IsConnected)
+            {
+                Connect();
+            }
         }
 
         /// <summary>
