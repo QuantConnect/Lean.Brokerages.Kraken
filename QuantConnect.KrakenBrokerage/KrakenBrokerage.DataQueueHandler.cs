@@ -412,7 +412,8 @@ namespace QuantConnect.Brokerages.Kraken
             {
                 throw new ArgumentException($"KrakenBrokerage.SetJob(): missing value -- kraken-orderbook-depth");
             }
-            var aggregator = Composer.Instance.GetExportedValueByTypeName<IDataAggregator>(Config.Get("data-aggregator", "QuantConnect.Lean.Engine.DataFeeds.AggregationManager"));
+            var aggregator = Composer.Instance.GetExportedValueByTypeName<IDataAggregator>(
+                Config.Get("data-aggregator", "QuantConnect.Lean.Engine.DataFeeds.AggregationManager"), forceTypeNameOnExisting: false);
 
             Initialize(
                 job.BrokerageData["kraken-api-key"],
