@@ -65,8 +65,8 @@ namespace QuantConnect.Tests.Brokerages.Kraken
                 foreach (var slice in history)
                 {
                     var bar = slice.Bars[symbol];
-                    
-                    Log.Trace("{0}: {1} - O={2}, H={3}, L={4}, C={5}", bar.Time, bar.Symbol, bar.Open, bar.High, bar.Low, bar.Close);
+
+                    Log.Debug($"{bar.Time}: {bar}");
                 }
 
                 Log.Trace("Data points retrieved: " + historyProvider.DataPointCount);
