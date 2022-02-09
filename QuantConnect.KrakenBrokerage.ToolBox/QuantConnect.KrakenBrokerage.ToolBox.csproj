@@ -10,6 +10,7 @@
         <Product>QuantConnect.KrakenBrokerage.ToolBox</Product>
         <RootNamespace>QuantConnect.KrakenBrokerage.ToolBox</RootNamespace>
         <AssemblyTitle>QuantConnect.KrakenBrokerage.ToolBox</AssemblyTitle>
+        <AssemblyName>QuantConnect.KrakenBrokerage.ToolBox</AssemblyName>
         <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
         <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
         <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
