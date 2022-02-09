@@ -130,42 +130,49 @@ namespace QuantConnect.Tests.Brokerages.Kraken
 
         protected override decimal GetDefaultQuantity() => SymbolPropertiesDatabase.FromDataFolder().GetSymbolProperties(Market.Kraken, Symbol, Symbol.SecurityType, Currencies.USD).MinimumOrderSize.Value; // Take order minimum
 
+        [Explicit("This test requires a configured and testable account")]
         [Test, TestCaseSource(nameof(CancelOrderParameters))]
         public override void CancelOrders(OrderTestParameters parameters)
         {
             base.CancelOrders(parameters);
         }
 
+        [Explicit("This test requires a configured and testable account")]
         [Test, TestCaseSource(nameof(OrderParameters))]
         public override void LongFromZero(OrderTestParameters parameters)
         {
             base.LongFromZero(parameters);
         }
 
+        [Explicit("This test requires a configured and testable account")]
         [Test, TestCaseSource(nameof(OrderParameters))]
         public override void CloseFromLong(OrderTestParameters parameters)
         {
             base.CloseFromLong(parameters);
         }
 
+        [Explicit("This test requires a configured and testable account")]
         [Test, TestCaseSource(nameof(OrderParameters))]
         public override void ShortFromZero(OrderTestParameters parameters)
         {
             base.ShortFromZero(parameters);
         }
 
+        [Explicit("This test requires a configured and testable account")]
         [Test, TestCaseSource(nameof(OrderParameters))]
         public override void CloseFromShort(OrderTestParameters parameters)
         {
             base.CloseFromShort(parameters);
         }
 
+        [Explicit("This test requires a configured and testable account")]
         [Test, TestCaseSource(nameof(NonUpdatableOrderParameters))]
         public override void ShortFromLong(OrderTestParameters parameters)
         {
             base.ShortFromLong(parameters);
         }
 
+        [Explicit("This test requires a configured and testable account")]
         [Test, TestCaseSource(nameof(NonUpdatableOrderParameters))]
         public override void LongFromShort(OrderTestParameters parameters)
         {
