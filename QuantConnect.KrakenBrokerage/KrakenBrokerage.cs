@@ -105,6 +105,7 @@ namespace QuantConnect.Brokerages.Kraken
         {
             _rateLimiter.DisposeSafely();
             _webSocketRateLimiter.DisposeSafely();
+            SubscriptionManager.DisposeSafely();
         }
 
         public override bool IsConnected => WebSocket.IsOpen;
