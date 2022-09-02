@@ -22,9 +22,10 @@ This repository hosts the Kraken Brokerage Plugin Integration with the QuantConn
 
 [Kraken](https://www.kraken.com/) was founded by Jesse Powell in 2011 with the goal to "accelerate the adoption of cryptocurrency so that you and the rest of the world can achieve financial freedom and inclusion". Kraken provides access to trading Crypto through spot and Futures markets for clients with a minimum deposit of around $0-$150 USD for [currency](https://support.kraken.com/hc/en-us/articles/360000381846) and [Crypto deposits](https://support.kraken.com/hc/en-us/articles/360000292886-Cryptocurrency-deposit-fees-and-minimums). Kraken also provides staking services, educational content, and a developer grant program.
 
+For more information about the Kraken brokerage, see the [QuantConnect-Kraken Integration Page](https://www.quantconnect.com/docs/v2/our-platform/live-trading/brokerages/kraken).
 
 ## Using the Brokerage Plugin
-  
+
 ### QuantConnect Cloud
 
   This plugin is integrated in the QuantConnect Cloud Platform where you can use this integration with a simple visual interface, and harness the QuantConnect Live Data Feed. For most users this is substantially cheaper and easier than self-hosting. For more information see the [Kraken documentation page](https://www.quantconnect.com/docs/v2/our-platform/live-trading/brokerages/kraken). 
@@ -66,7 +67,7 @@ Follow these steps to start local live trading with the Kraken brokerage:
     1. Organization 1
     2. Organization 2
     3. Organization 3
-       Enter an option: 
+    Enter an option:
     ```
 
 4.  Enter your Kraken credentials.
@@ -106,20 +107,18 @@ Follow these steps to start local live trading with the Kraken brokerage:
     13. IQFeed
     14. Polygon Data Feed
     15. Custom Data Only
-  
-        To enter multiple options, separate them with comma:
+    To enter multiple options, separate them with comma:
     ```
 
-7. View the result in the `<projectName>`/live/`<timestamp>` directory. Results are stored in real-time in JSON format. You can save results to a different directory by providing the --output `<path>` option in step 2.
+7. View the result in the `<projectName>/live/<timestamp>` directory. Results are stored in real-time in JSON format. You can save results to a different directory by providing the `--output <path>` option in step 2.
 
-If you already have a live environment configured in your [Lean configuration file](https://www.quantconnect.com/docs/v2/lean-cli/initialization/configuration#03-Lean-Configuration), you can skip the interactive wizard by providing the --environment `<value>` option in step 2. The value of this option must be the name of an environment which has live-mode set to true.
+If you already have a live environment configured in your [Lean configuration file](https://www.quantconnect.com/docs/v2/lean-cli/initialization/configuration#03-Lean-Configuration), you can skip the interactive wizard by providing the `--environment <value>` option in step 2. The value of this option must be the name of an environment which has `live-mode` set to true.
 
 ## Account Types
 
 Kraken supports cash and margin accounts.
 
 ## Order Types and Asset Classes
-
 
 Kraken supports trading Crypto with the following order types:
 
@@ -134,7 +133,7 @@ Kraken supports trading Crypto with the following order types:
 
 For local deployment, the algorithm needs to download the following dataset:
 
-[Kraken Crypto Price Data](https://www.quantconnect.com/datasets/kraken-crypto-price-data) provided by CoinAPI
+- [Kraken Crypto Price Data](https://www.quantconnect.com/datasets/kraken-crypto-price-data) provided by CoinAPI
 
 
 ## Brokerage Model
