@@ -26,11 +26,15 @@ For more information about the Kraken brokerage, see the [QuantConnect-Kraken In
 
 ## Using the Brokerage Plugin
 
-### QuantConnect Cloud
+### Deploying Kraken with VSCode User Interace
 
-  This plugin is integrated in the QuantConnect Cloud Platform where you can use this integration with a simple visual interface, and harness the QuantConnect Live Data Feed. For most users this is substantially cheaper and easier than self-hosting. For more information see the [Kraken documentation page](https://www.quantconnect.com/docs/v2/our-platform/live-trading/brokerages/kraken). 
+  You can deploy using a visual interface in the QuantConnect Cloud. For more information, see the [QuantConnect-Kraken documentation page](https://www.quantconnect.com/docs/v2/our-platform/live-trading/brokerages/kraken). 
   
-### Locally
+  ![deploy-kraken](https://user-images.githubusercontent.com/38889814/188245697-3514631b-2856-4fe6-ba73-70e85f7256db.gif)
+
+  In the QuantConnect Cloud Platform, you can harness the QuantConnect Live Data Feed. For most users, this is substantially cheaper and easier than self-hosting.
+  
+### Deploying Kraken with LEAN CLI
 
 Follow these steps to start local live trading with the Kraken brokerage:
 
