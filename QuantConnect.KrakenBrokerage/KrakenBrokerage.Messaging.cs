@@ -246,8 +246,9 @@ namespace QuantConnect.Brokerages.Kraken
                         {
                             fillQuantity *= -1;
                         }
-                        
-                        var orderEventSent = _closedOrderEventSend[orderId];
+
+                        // when canceled it might not be present, which means we haven't seen it so it's okay, we didn't send the event yet
+                        _closedOrderEventSend.TryGetValue(orderId, out var orderEventSent);
                             
                         if (status is OrderStatus.Filled && orderEventSent || status is OrderStatus.Canceled)
                         {
