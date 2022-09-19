@@ -68,19 +68,38 @@ namespace QuantConnect.Brokerages.Kraken
                         return;
                     }
 
-                    if (response.Event == "addOrderStatus" && response.Status != "error")
+                    if (response.Event == "addOrderStatus")
                     {
                         var addOrder = token.ToObject<KrakenWsAddOrderResponse>();
                         var userref = addOrder.Reqid;
                         var brokerId = addOrder.Txid;
 
-                        if (CachedOrderIDs.ContainsKey(userref))
+                        CachedOrderIDs.TryGetValue(userref, out var order);
+                        if (response.Status != "error")
                         {
-                            CachedOrderIDs[userref].BrokerId.Clear();
-                            CachedOrderIDs[userref].BrokerId.Add(brokerId);
-                        }
+                            if (order != null)
+                            {
+                                order.BrokerId.Clear();
+                                order.BrokerId.Add(brokerId);
 
-                        _closedOrderEventSend[CachedOrderIDs[userref].Id] = false;
+                                _closedOrderEventSend[order.Id] = false;
+                            }
+                            else
+                            {
+                                // this shouldn't happen but just in case
+                                OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, -1, $"Unable to find order for request id: {userref}."));
+                            }
+                        }
+                        else
+                        {
+                            var message = $"Error {token["event"]} event. Message: {token["errorMessage"]}";
+                            if(order != null)
+                            {
+                                message += $". Order: {order}";
+                            }
+                            // error
+                            OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Error, -1, message));
+                        }
                         
                         return;
                     }
