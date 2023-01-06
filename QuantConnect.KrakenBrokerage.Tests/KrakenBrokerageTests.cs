@@ -32,6 +32,7 @@ using QuantConnect.Orders.Fees;
 using QuantConnect.Securities;
 using QuantConnect.Securities.Crypto;
 using QuantConnect.Tests.Common.Securities;
+using QuantConnect.Util;
 
 namespace QuantConnect.Tests.Brokerages.Kraken
 {
@@ -272,9 +273,11 @@ namespace QuantConnect.Tests.Brokerages.Kraken
 
         private Crypto SecurityInit(out SecurityPortfolioModel model, out SecurityManager securities)
         {
+            CurrencyPairUtil.DecomposeCurrencyPair(Symbol, out var baseCurrency, out var quoteCurrency);
             var security = new Crypto(
                 SecurityExchangeHours.AlwaysOpen(TimeZones.NewYork),
-                new Cash(Currencies.USD, 100, 1m),
+                new Cash(quoteCurrency, 100, 1m),
+                new Cash(baseCurrency, 0, 0),
                 new SubscriptionDataConfig(
                     typeof(TradeBar),
                     Symbol,

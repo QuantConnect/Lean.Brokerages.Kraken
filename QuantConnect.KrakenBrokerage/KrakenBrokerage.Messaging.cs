@@ -149,7 +149,7 @@ namespace QuantConnect.Brokerages.Kraken
 
                     if (order == null)
                     {
-                        order = _algorithm.Transactions.GetOrderByBrokerageId(brokerId);
+                        order = _algorithm.Transactions.GetOrdersByBrokerageId(brokerId).SingleOrDefault();
                         if (order == null)
                         {
                             Log.Error($"EmitOrderEvent(): order not found: BrokerId: {brokerId}");
