@@ -42,7 +42,7 @@ namespace QuantConnect.Tests.Brokerages.Kraken
         protected override IBrokerage CreateBrokerage(IOrderProvider orderProvider, ISecurityProvider securityProvider)
         {
             // avoid rate limit hits
-            Thread.Sleep(1000);
+            Thread.Sleep(5000);
 
             var environment = Environment.GetEnvironmentVariables();
 
