@@ -240,23 +240,11 @@ namespace QuantConnect.Brokerages.Kraken
                             fillPrice = orderData.Avg_Price;
                         }
 
-                        if (!_fills.TryGetValue(orderId, out var totalFilledQuantity))
-                        {
-                            _fills[orderId] = fillQuantity;
-                            totalFilledQuantity = fillQuantity;
-                        }
-                        else
-                        {
-                            totalFilledQuantity += fillQuantity;
-                            _fills[orderId] = totalFilledQuantity;
-                        }
-
-                        if (totalFilledQuantity == order.AbsoluteQuantity)
+                        if (fillQuantity == order.AbsoluteQuantity)
                         {
                             status = OrderStatus.Filled;
                         }
-
-                        if (fillQuantity != 0 && status != OrderStatus.Filled)
+                        else if (fillQuantity != 0 && status != OrderStatus.Filled)
                         {
                             status = OrderStatus.PartiallyFilled;
                         }
@@ -282,11 +270,15 @@ namespace QuantConnect.Brokerages.Kraken
                         {
                             return;
                         }
-                        
+
+                        // we get the complete filled quantity, so we keep track so we just send the difference to lean
+                        _fills.TryGetValue(orderId, out var previousFilledQuantity);
+                        _fills[orderId] = fillQuantity;
+
                         orderEvent = new OrderEvent
                         (
                             orderId, order.Symbol, updTime, status,
-                            direction, fillPrice, fillQuantity,
+                            direction, fillPrice, fillQuantity - previousFilledQuantity,
                             orderFee, $"Kraken Order Event {direction}"
                         );
                     }
