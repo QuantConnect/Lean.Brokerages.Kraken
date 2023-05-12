@@ -16,7 +16,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using QuantConnect.Configuration;
 using QuantConnect.Data;
 using QuantConnect.Data.Market;
 using QuantConnect.Logging;
@@ -46,7 +45,7 @@ namespace QuantConnect.ToolBox.KrakenDataDownloader
                 var castResolution = (Resolution)Enum.Parse(typeof(Resolution), resolution);
 
                 // Load settings from config.json and create downloader
-                var dataDirectory = Config.Get("data-directory", "../../../Data");
+                var dataDirectory = Globals.DataFolder;
                 var downloader = new KrakenDownloader.KrakenDataDownloader();
 
                 foreach (var pair in tickers)
