@@ -51,12 +51,19 @@ namespace QuantConnect.Brokerages.Kraken.Converters
             reader.FloatParseHandling = FloatParseHandling.Decimal;
             var array = JArray.Load(reader);
 
-            return new KrakenBidAsk
+            var result = new KrakenBidAsk
             {
                 Price = array[0].Type == JTokenType.Null ? 0 : Convert.ToDecimal((string) array[0]),
                 Volume = array[1].Type == JTokenType.Null ? 0 : Convert.ToDecimal((string) array[1]),
-                Timestamp = array[2].Type == JTokenType.Null ? 0 : Convert.ToDecimal((string) array[2])
+                Timestamp = array[2].Type == JTokenType.Null ? 0 : Convert.ToDecimal((string) array[2]),
             };
+
+            if (array.Count > 3 && array[3].Type != JTokenType.Null)
+            {
+                result.UpdateType = array[3].Value<string>();
+            }
+
+            return result;
         }
 
         /// <summary>

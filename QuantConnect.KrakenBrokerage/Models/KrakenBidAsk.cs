@@ -38,5 +38,10 @@ namespace QuantConnect.Brokerages.Kraken.Models
         /// Ask or bid time
         /// </summary>
         public decimal Timestamp { get; set; }
+
+        /// <summary>
+        /// Update type
+        /// </summary>
+        public string UpdateType { get; set; }
     }
 }

@@ -40,7 +40,7 @@ namespace QuantConnect.Tests.Brokerages.Kraken
 
                 var historyProvider = new BrokerageHistoryProvider();
                 historyProvider.SetBrokerage(brokerage);
-                historyProvider.Initialize(new HistoryProviderInitializeParameters(null, null, null, null, null, null, null, false, new DataPermissionManager()));
+                historyProvider.Initialize(new HistoryProviderInitializeParameters(null, null, null, null, null, null, null, false, new DataPermissionManager(), null));
 
                 var now = DateTime.UtcNow;
 
@@ -92,7 +92,7 @@ namespace QuantConnect.Tests.Brokerages.Kraken
 
                 var historyProvider = new BrokerageHistoryProvider();
                 historyProvider.SetBrokerage(brokerage);
-                historyProvider.Initialize(new HistoryProviderInitializeParameters(null, null, null, null, null, null, null,false, new DataPermissionManager()));
+                historyProvider.Initialize(new HistoryProviderInitializeParameters(null, null, null, null, null, null, null,false, new DataPermissionManager(), null));
 
                 var now = DateTime.UtcNow;
 
