@@ -57,7 +57,7 @@ namespace QuantConnect.Tests.Brokerages.Kraken
             var algorithm = new Mock<IAlgorithm>();
             algorithm.Setup(a => a.Transactions).Returns(transactions);
             algorithm.Setup(a => a.BrokerageModel).Returns(new KrakenBrokerageModel(AccountType.Margin));
-            algorithm.Setup(a => a.Portfolio).Returns(new SecurityPortfolioManager(securities, transactions));
+            algorithm.Setup(a => a.Portfolio).Returns(new SecurityPortfolioManager(securities, transactions, new AlgorithmSettings()));
 
             if (environment.Contains("KRAKEN_PUBLIC"))
             {
@@ -203,7 +203,7 @@ namespace QuantConnect.Tests.Brokerages.Kraken
             var transactions = new SecurityTransactionManager(null, securities);
             transactions.SetOrderProcessor(new FakeOrderProcessor());
 
-            var portfolio = new SecurityPortfolioManager(securities, transactions);
+            var portfolio = new SecurityPortfolioManager(securities, transactions, new AlgorithmSettings());
             portfolio.CashBook["BTC"] = new Cash("BTC", 0.1m, 1);
 
             var initialStateDict = new Dictionary<string, decimal>();
@@ -252,7 +252,7 @@ namespace QuantConnect.Tests.Brokerages.Kraken
             var transactions = new SecurityTransactionManager(null, securities);
             transactions.SetOrderProcessor(new FakeOrderProcessor());
 
-            var portfolio = new SecurityPortfolioManager(securities, transactions);
+            var portfolio = new SecurityPortfolioManager(securities, transactions, new AlgorithmSettings());
             portfolio.CashBook["BTC"] = new Cash("BTC", 0.1m, 1);
 
             var initialStateDict = new Dictionary<string, decimal>();

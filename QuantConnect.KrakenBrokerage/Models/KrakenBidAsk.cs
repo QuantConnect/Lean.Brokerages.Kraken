@@ -38,5 +38,10 @@ namespace QuantConnect.Brokerages.Kraken.Models
         /// Ask or bid time
         /// </summary>
         public decimal Timestamp { get; set; }
+
+        /// <summary>
+        /// Update type. 'r' when price levels are pulled into scope by another price level being deleted
+        /// </summary>
+        public string UpdateType { get; set; }
     }
 }

@@ -42,7 +42,7 @@ namespace QuantConnect.Brokerages.Kraken
         /// </summary>
         private string WebsocketToken { get; set; }
         
-        private readonly ConcurrentDictionary<Symbol, DefaultOrderBook> _orderBooks = new ConcurrentDictionary<Symbol, DefaultOrderBook>();
+        private readonly ConcurrentDictionary<Symbol, KrakenOrderBook> _orderBooks = new ();
 
         private string _orderBookChannel;
         private int _orderBookDepth; // Valid Options are: 10, 25, 100, 500, 1000
@@ -263,30 +263,34 @@ namespace QuantConnect.Brokerages.Kraken
             {
                 if (!_orderBooks.TryGetValue(symbol, out var orderBook))
                 {
-                    orderBook = new DefaultOrderBook(symbol);
+                    orderBook = new (symbol, _orderBookDepth);
                     _orderBooks[symbol] = orderBook;
                 }
                 else
                 {
                     orderBook.BestBidAskUpdated -= OnBestBidAskUpdated;
+                }
+
+                lock(orderBook)
+                {
                     orderBook.Clear();
-                }
 
-                foreach (var entry in book["as"])
-                {
-                    var bidAsk = entry.ToObject<KrakenBidAsk>();
-                    orderBook.UpdateAskRow(bidAsk.Price, bidAsk.Volume);
-                }
-                
-                foreach (var entry in book["bs"])
-                {
-                    var bidAsk = entry.ToObject<KrakenBidAsk>();
-                    orderBook.UpdateBidRow(bidAsk.Price, bidAsk.Volume);
-                }
+                    foreach (var entry in book["as"])
+                    {
+                        var bidAsk = entry.ToObject<KrakenBidAsk>();
+                        orderBook.UpdateAskRow(bidAsk.Price, bidAsk.Volume);
+                    }
 
-                orderBook.BestBidAskUpdated += OnBestBidAskUpdated;
+                    foreach (var entry in book["bs"])
+                    {
+                        var bidAsk = entry.ToObject<KrakenBidAsk>();
+                        orderBook.UpdateBidRow(bidAsk.Price, bidAsk.Volume);
+                    }
 
-                EmitQuoteTick(symbol, orderBook.BestBidPrice, orderBook.BestBidSize, orderBook.BestAskPrice, orderBook.BestAskSize);
+                    orderBook.BestBidAskUpdated += OnBestBidAskUpdated;
+
+                    EmitQuoteTick(symbol, orderBook.BestBidPrice, orderBook.BestBidSize, orderBook.BestAskPrice, orderBook.BestAskSize);
+                }
             }
             catch (Exception e)
             {
@@ -294,7 +298,7 @@ namespace QuantConnect.Brokerages.Kraken
                 throw;
             }
         }
-        
+
         /// <summary>
         /// Parse ws book update websocket message
         /// </summary>
@@ -306,21 +310,38 @@ namespace QuantConnect.Brokerages.Kraken
             {
                 var orderBook = _orderBooks[symbol];
 
-                if (book["a"] != null)
+                lock(orderBook)
                 {
-                    foreach (var ask in book["a"])
+                    if (book["a"] != null)
                     {
-                        var bidAsk = ask.ToObject<KrakenBidAsk>();
-                        orderBook.UpdateAskRow(bidAsk.Price, bidAsk.Volume);
+                        foreach (var rawAsk in book["a"])
+                        {
+                            var ask = rawAsk.ToObject<KrakenBidAsk>();
+                            if (ask.Volume == 0)
+                            {
+                                orderBook.RemoveAskRow(ask.Price);
+                            }
+                            else
+                            {
+                                orderBook.UpdateAskRow(ask.Price, ask.Volume);
+                            }
+                        }
                     }
-                }
-                
-                if (book["b"] != null)
-                {
-                    foreach (var bid in book["b"])
+
+                    if (book["b"] != null)
                     {
-                        var bidAsk = bid.ToObject<KrakenBidAsk>();
-                        orderBook.UpdateBidRow(bidAsk.Price, bidAsk.Volume);
+                        foreach (var rawBid in book["b"])
+                        {
+                            var bid = rawBid.ToObject<KrakenBidAsk>();
+                            if (bid.Volume == 0)
+                            {
+                                orderBook.RemoveBidRow(bid.Price);
+                            }
+                            else
+                            {
+                                orderBook.UpdateBidRow(bid.Price, bid.Volume);
+                            }
+                        }
                     }
                 }
             }
