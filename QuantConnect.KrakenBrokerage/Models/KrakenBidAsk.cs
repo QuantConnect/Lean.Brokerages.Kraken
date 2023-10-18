@@ -40,7 +40,7 @@ namespace QuantConnect.Brokerages.Kraken.Models
         public decimal Timestamp { get; set; }
 
         /// <summary>
-        /// Update type
+        /// Update type. 'r' when price levels are pulled into scope by another price level being deleted
         /// </summary>
         public string UpdateType { get; set; }
     }

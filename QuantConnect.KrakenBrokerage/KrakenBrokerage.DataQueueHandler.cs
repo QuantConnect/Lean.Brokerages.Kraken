@@ -308,44 +308,32 @@ namespace QuantConnect.Brokerages.Kraken
 
                 if (book["a"] != null)
                 {
-                    foreach (var ask in book["a"])
+                    foreach (var rawAsk in book["a"])
                     {
-                        var bidAsk = ask.ToObject<KrakenBidAsk>();
-                        if (bidAsk.UpdateType == "r")
+                        var ask = rawAsk.ToObject<KrakenBidAsk>();
+                        if (ask.Volume == 0)
                         {
-                            // republish
-                            continue;
-                        }
-
-                        if (bidAsk.Volume == 0)
-                        {
-                            orderBook.RemoveAskRow(bidAsk.Price);
+                            orderBook.RemoveAskRow(ask.Price);
                         }
                         else
                         {
-                            orderBook.UpdateAskRow(bidAsk.Price, bidAsk.Volume);
+                            orderBook.UpdateAskRow(ask.Price, ask.Volume);
                         }
                     }
                 }
                 
                 if (book["b"] != null)
                 {
-                    foreach (var bid in book["b"])
+                    foreach (var rawBid in book["b"])
                     {
-                        var bidAsk = bid.ToObject<KrakenBidAsk>();
-                        if(bidAsk.UpdateType == "r")
+                        var bid = rawBid.ToObject<KrakenBidAsk>();
+                        if (bid.Volume == 0)
                         {
-                            // republish
-                            continue;
-                        }
-
-                        if (bidAsk.Volume == 0)
-                        {
-                            orderBook.RemoveBidRow(bidAsk.Price);
+                            orderBook.RemoveBidRow(bid.Price);
                         }
                         else
                         {
-                            orderBook.UpdateBidRow(bidAsk.Price, bidAsk.Volume);
+                            orderBook.UpdateBidRow(bid.Price, bid.Volume);
                         }
                     }
                 }
