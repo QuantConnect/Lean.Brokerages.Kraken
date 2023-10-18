@@ -269,24 +269,28 @@ namespace QuantConnect.Brokerages.Kraken
                 else
                 {
                     orderBook.BestBidAskUpdated -= OnBestBidAskUpdated;
+                }
+
+                lock(orderBook)
+                {
                     orderBook.Clear();
-                }
 
-                foreach (var entry in book["as"])
-                {
-                    var bidAsk = entry.ToObject<KrakenBidAsk>();
-                    orderBook.UpdateAskRow(bidAsk.Price, bidAsk.Volume);
-                }
-                
-                foreach (var entry in book["bs"])
-                {
-                    var bidAsk = entry.ToObject<KrakenBidAsk>();
-                    orderBook.UpdateBidRow(bidAsk.Price, bidAsk.Volume);
-                }
+                    foreach (var entry in book["as"])
+                    {
+                        var bidAsk = entry.ToObject<KrakenBidAsk>();
+                        orderBook.UpdateAskRow(bidAsk.Price, bidAsk.Volume);
+                    }
 
-                orderBook.BestBidAskUpdated += OnBestBidAskUpdated;
+                    foreach (var entry in book["bs"])
+                    {
+                        var bidAsk = entry.ToObject<KrakenBidAsk>();
+                        orderBook.UpdateBidRow(bidAsk.Price, bidAsk.Volume);
+                    }
 
-                EmitQuoteTick(symbol, orderBook.BestBidPrice, orderBook.BestBidSize, orderBook.BestAskPrice, orderBook.BestAskSize);
+                    orderBook.BestBidAskUpdated += OnBestBidAskUpdated;
+
+                    EmitQuoteTick(symbol, orderBook.BestBidPrice, orderBook.BestBidSize, orderBook.BestAskPrice, orderBook.BestAskSize);
+                }
             }
             catch (Exception e)
             {
@@ -306,34 +310,37 @@ namespace QuantConnect.Brokerages.Kraken
             {
                 var orderBook = _orderBooks[symbol];
 
-                if (book["a"] != null)
+                lock(orderBook)
                 {
-                    foreach (var rawAsk in book["a"])
+                    if (book["a"] != null)
                     {
-                        var ask = rawAsk.ToObject<KrakenBidAsk>();
-                        if (ask.Volume == 0)
+                        foreach (var rawAsk in book["a"])
                         {
-                            orderBook.RemoveAskRow(ask.Price);
-                        }
-                        else
-                        {
-                            orderBook.UpdateAskRow(ask.Price, ask.Volume);
+                            var ask = rawAsk.ToObject<KrakenBidAsk>();
+                            if (ask.Volume == 0)
+                            {
+                                orderBook.RemoveAskRow(ask.Price);
+                            }
+                            else
+                            {
+                                orderBook.UpdateAskRow(ask.Price, ask.Volume);
+                            }
                         }
                     }
-                }
-                
-                if (book["b"] != null)
-                {
-                    foreach (var rawBid in book["b"])
+
+                    if (book["b"] != null)
                     {
-                        var bid = rawBid.ToObject<KrakenBidAsk>();
-                        if (bid.Volume == 0)
+                        foreach (var rawBid in book["b"])
                         {
-                            orderBook.RemoveBidRow(bid.Price);
-                        }
-                        else
-                        {
-                            orderBook.UpdateBidRow(bid.Price, bid.Volume);
+                            var bid = rawBid.ToObject<KrakenBidAsk>();
+                            if (bid.Volume == 0)
+                            {
+                                orderBook.RemoveBidRow(bid.Price);
+                            }
+                            else
+                            {
+                                orderBook.UpdateBidRow(bid.Price, bid.Volume);
+                            }
                         }
                     }
                 }
