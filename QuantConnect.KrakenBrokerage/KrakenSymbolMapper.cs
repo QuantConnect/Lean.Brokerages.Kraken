@@ -45,13 +45,19 @@ namespace QuantConnect.Brokerages.Kraken
             {"ZGBP", "GBP"},
             {"ZAUD", "AUD"},
             {"ZCAD", "CAD"},
+            {"ZJPY", "JPY"},
             {"XXBT", "BTC"},
             {"XXRP", "XRP"},
             {"XLTC", "LTC"},
             {"XETH", "ETH"},
             {"XETC", "ETC"},
+            {"XLMN", "MLN"},
             {"XREP", "REP"},
+            {"XXBT", "XBT"},
             {"XXMR", "XMR"},
+            {"XXLM", "XLM"},
+            {"XZEC", "ZEC"},
+
         };
 
         public KrakenSymbolMapper()
