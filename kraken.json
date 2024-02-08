@@ -1,0 +1,17 @@
+{
+	"description": "Kraken is a regulated US crypto spot exchange. They provide staking services, educational content, and a developer grant program.",
+	
+	"platforms-features": [
+		{
+			"Platforms": ["Cloud Platform", "Local Platform", "LEAN CLI"],
+			"Download Data": [1,1,1],
+			"Backtesting": [1,1,1],
+			"Optimization": [1,1,1],
+			"Live Trading":	[1,1,1]
+		}
+	],
+  "order-types": ["Market", "Limit", "Limit-If-Touched", "Stop Market", "Stop Limit"],
+	"assets": ["Crypto Spot"], 
+	"brokerage-url": "https://www.kraken.com/",
+  "documentation": "/docs/v2/cloud-platform/live-trading/brokerages/kraken"
+}
