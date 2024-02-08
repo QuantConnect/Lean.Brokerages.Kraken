@@ -10,8 +10,8 @@
 			"Live Trading":	[1,1,1]
 		}
 	],
-  "order-types": ["Market", "Limit", "Limit-If-Touched", "Stop Market", "Stop Limit"],
+	"order-types": ["Market", "Limit", "Limit-If-Touched", "Stop Market", "Stop Limit"],
 	"assets": ["Crypto Spot"], 
 	"brokerage-url": "https://www.kraken.com/",
-  "documentation": "/docs/v2/cloud-platform/live-trading/brokerages/kraken"
+	"documentation": "/docs/v2/cloud-platform/live-trading/brokerages/kraken"
 }
