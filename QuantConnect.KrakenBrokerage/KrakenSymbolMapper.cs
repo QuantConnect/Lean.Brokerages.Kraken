@@ -54,6 +54,7 @@ namespace QuantConnect.Brokerages.Kraken
             {"XLMN", "MLN"},
             {"XREP", "REP"},
             {"XXBT", "XBT"},
+            {"XXDG", "XDG"},
             {"XXMR", "XMR"},
             {"XXLM", "XLM"},
             {"XZEC", "ZEC"},
