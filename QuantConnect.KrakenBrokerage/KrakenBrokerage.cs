@@ -117,9 +117,9 @@ namespace QuantConnect.Brokerages.Kraken
         public override List<Order> GetOpenOrders()
         {
             string query = "/0/private/OpenOrders";
-            
+
             var token = MakeRequest(query, "GetOpenOrders", method:Method.POST, isPrivate: true);
-            
+
             List<Order> list = new List<Order>();
             foreach (JProperty item in token["result"]["open"].Children())
             {
@@ -129,7 +129,7 @@ namespace QuantConnect.Brokerages.Kraken
                 var symbol = _symbolMapper.GetLeanSymbolFromOpenOrders(krakenOrder.Descr.Pair);
                 var time = !string.IsNullOrEmpty(krakenOrder.Opentm) ? Time.UnixTimeStampToDateTime(krakenOrder.Opentm.ConvertInvariant<double>()) : DateTime.UtcNow;
                 var brokerId = item.Name;
-                
+
                 var properties = new KrakenOrderProperties();
 
                 if (krakenOrder.Oflags.Contains("post"))
@@ -163,7 +163,7 @@ namespace QuantConnect.Brokerages.Kraken
                         break;
                     case "STOP-LOSS":
                         var stopPrice = krakenOrder.Descr.Price;
-                        order = new StopMarketOrder(symbol, quantity, stopPrice, time, properties: properties)               
+                        order = new StopMarketOrder(symbol, quantity, stopPrice, time, properties: properties)
                         {
                             BrokerId = {brokerId}
                         };
@@ -207,12 +207,12 @@ namespace QuantConnect.Brokerages.Kraken
                         CachedOrderIDs[cached.First().Key] = order;
                     }
                 }
-            
+
                 list.Add(order);
             }
-            
+
             return list;
-            
+
         }
 
         /// <summary>
@@ -225,7 +225,7 @@ namespace QuantConnect.Brokerages.Kraken
             {
                 return base.GetAccountHoldings(_job?.BrokerageData, _algorithm.Securities.Values);
             }
-            
+
             var param = new Dictionary<string, object>
             {
                 {"docalcs", true}
@@ -259,14 +259,14 @@ namespace QuantConnect.Brokerages.Kraken
                 {
                     holding.Quantity *= -1;
                 }
-                
+
                 holdings.Add(holding);
             }
 
             return holdings;
-            
+
         }
-        
+
         /// <summary>
         /// Get Kraken Balances
         /// </summary>
@@ -274,7 +274,7 @@ namespace QuantConnect.Brokerages.Kraken
         public override List<CashAmount> GetCashBalance()
         {
             string query = "/0/private/Balance";
-            
+
             var token = MakeRequest(query, "GetCashBalance", method:Method.POST, isPrivate: true);
 
             var cash = new List<CashAmount>();
@@ -292,32 +292,32 @@ namespace QuantConnect.Brokerages.Kraken
             }
 
             var balances = cash.ToDictionary(x => x.Currency);
-            
+
             if (_algorithm.BrokerageModel.AccountType == AccountType.Margin)
             {
                 var holdings = GetAccountHoldings();
                 for (var i = 0; i < holdings.Count; i++)
                 {
                     CurrencyPairUtil.DecomposeCurrencyPair(holdings[i].Symbol, out var @base, out var quote);
-                    
+
                     // Kraken margin balances logic
                     // Before position opened I had 80.397 USD, 0.047 ETH balances
                     // I opened position for 5 Usd, it's ~0.004 Eth. And balances remain 80.397 USD, 0.047 ETH.
                     // Then I closed positions(it was with negative pnl) and balances became 80.1 USD, 0.047 ETH.
-                    
+
                     // Lean balances logic
                     // Before the position opened I had 100 USD, 0.1 ETH
                     // I opened the position for 0.01 Eth. And balances became 70 USD, 0.11 ETH.
                     // Then I closed positions(without pnl and fees) and balances became 100 USD, 0.1 ETH again.
-                    
+
                     var baseQuantity = holdings[i].Quantity; // add Base holding to balance
-                    
+
                     balances[@base] = balances.TryGetValue(@base, out var baseCurrencyAmount)
                         ? new CashAmount(baseQuantity + baseCurrencyAmount.Amount, @base)
                         : new CashAmount(baseQuantity, @base);
 
                     var quoteQuantity = -holdings[i].Quantity * holdings[i].AveragePrice; // substract quote holding value from balance
-                    
+
                     balances[quote] = balances.TryGetValue(quote, out var quoteCurrencyAmount)
                         ? new CashAmount(quoteQuantity + quoteCurrencyAmount.Amount, quote)
                         : new CashAmount(quoteQuantity, quote);
@@ -341,7 +341,7 @@ namespace QuantConnect.Brokerages.Kraken
             var json = JsonConvert.SerializeObject(parameters);
 
             _rateLimiter.OrderRateLimitCheck(order.Symbol);
-            
+
             WebSocket.Send(json);
 
             return true;
@@ -372,7 +372,7 @@ namespace QuantConnect.Brokerages.Kraken
                 Log.Trace("KrakenBrokerage.CancelOrder(): Unable to cancel order without BrokerId.");
                 return false;
             }
-            
+
             SetWebsocketToken();
             var json = JsonConvert.SerializeObject(new
             {
@@ -380,13 +380,13 @@ namespace QuantConnect.Brokerages.Kraken
                 token = WebsocketToken,
                 txid = order.BrokerId
             });
-            
+
             _rateLimiter.CancelOrderRateLimitCheck(_symbolMapper.GetBrokerageSymbol(order.Symbol), order.CreatedTime);
             WebSocket.Send(json);
 
             return true;
         }
-        
+
 
         /// <summary>
         /// Gets the history for the requested security
@@ -423,7 +423,7 @@ namespace QuantConnect.Brokerages.Kraken
                 OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, "NotFullHistoryWarning",
                     $"Kraken return max 720 TradeBars in history request. Now it will return TradeBars starting from {DateTime.UtcNow - period * 720}"));
             }
-            
+
             var marketSymbol = _symbolMapper.GetBrokerageSymbol(request.Symbol);
 
             var enumerator = request.Resolution == Resolution.Tick ? GetTradeBars(request, marketSymbol) : GetOhlcBars(request, marketSymbol, period);
@@ -497,7 +497,7 @@ namespace QuantConnect.Brokerages.Kraken
                 var timeframe = $"&since={start}";
 
                 var token = MakeRequest(url + timeframe, "GetOhlcBars");
-                
+
                 var candlesList = token["result"][marketSymbol].ToObject<List<KrakenCandle>>();
 
                 if (candlesList.Count > 0)
@@ -540,7 +540,7 @@ namespace QuantConnect.Brokerages.Kraken
                 }
             }
         }
-        
+
         /// <summary>
         /// Method to retrieve tick resolution TradeBars
         /// </summary>
@@ -575,7 +575,7 @@ namespace QuantConnect.Brokerages.Kraken
                     {
                         break;
                     }
-                    
+
                     start = lastValue.Time;
 
                     for (var i = 0; i < tradesList.Count; i++)
@@ -584,7 +584,7 @@ namespace QuantConnect.Brokerages.Kraken
                         {
                             yield break;
                         }
-                        
+
                         yield return new TradeBar()
                         {
                             Time = Time.UnixTimeStampToDateTime(tradesList[i].Time),
@@ -609,7 +609,7 @@ namespace QuantConnect.Brokerages.Kraken
         }
 
         /// <summary>
-        /// Wrapper to all request logic 
+        /// Wrapper to all request logic
         /// </summary>
         /// <param name="query">Api path</param>
         /// <param name="methodCaller">Method that calls request</param>
@@ -624,25 +624,25 @@ namespace QuantConnect.Brokerages.Kraken
             if (isPrivate)
             {
                 var nonce = Time.DateTimeToUnixTimeStampMilliseconds(DateTime.UtcNow).ConvertInvariant<long>();
-                
+
                 requestBody ??= new Dictionary<string, object>();
-                
+
                 requestBody.Add("nonce", nonce.ToString());
-                
+
                 headers = CreateSignature(query, nonce, BuildUrlEncode(requestBody));
             }
 
             var request = CreateRequest(query, headers, requestBody, method);
-            
+
             var response = ExecuteRestRequest(request);
 
             var token = JToken.Parse(response.Content);
-            
+
             if (response.StatusCode != HttpStatusCode.OK)
             {
                 throw new Exception($"KrakenBrokerage.{methodCaller}: request failed: [{(int) response.StatusCode}] {response.StatusDescription}, Content: {response.Content}, ErrorMessage: {response.ErrorMessage}");
             }
-            
+
             if (response.StatusCode == HttpStatusCode.OK && token["error"].HasValues)
             {
                 throw new Exception($"KrakenBrokerage.{methodCaller}: request failed: {token["error"]}");
@@ -667,7 +667,7 @@ namespace QuantConnect.Brokerages.Kraken
             do
             {
                 _rateLimiter.RateLimitCheck();
-                
+
                 response = RestClient.Execute(request);
                 // 429 status code: Too Many Requests
             } while (++attempts < maxAttempts && (int)response.StatusCode == 429);
@@ -690,10 +690,10 @@ namespace QuantConnect.Brokerages.Kraken
         {
             try
             {
-                var productId = 130;
-                var userId = Config.GetInt("job-user-id");
-                var token = Config.Get("api-access-token");
-                var organizationId = Config.Get("job-organization-id", null);
+                const int productId = 130;
+                var userId = Globals.UserId;
+                var token = Globals.UserToken;
+                var organizationId = Globals.OrganizationID;
                 // Verify we can authenticate with this user and token
                 var api = new ApiConnection(userId, token);
                 if (!api.Connected)
