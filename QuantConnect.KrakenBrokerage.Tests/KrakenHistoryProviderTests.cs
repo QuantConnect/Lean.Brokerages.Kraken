@@ -20,8 +20,6 @@ using NUnit.Framework;
 using QuantConnect.Brokerages.Kraken;
 using QuantConnect.Data;
 using QuantConnect.Data.Market;
-using QuantConnect.Lean.Engine.DataFeeds;
-using QuantConnect.Lean.Engine.HistoricalData;
 using QuantConnect.Logging;
 using QuantConnect.Securities;
 
@@ -29,97 +27,58 @@ namespace QuantConnect.Tests.Brokerages.Kraken
 {
     public partial class KrakenBrokerageTests
     {
-        [Test]
-        [TestCaseSource(nameof(ValidHistory))]
-        [TestCaseSource(nameof(InvalidHistory))]
-        public void GetsHistory(Symbol symbol, Resolution resolution, TimeSpan period, bool throwsException)
+        private static Symbol _ethusd;
+        private static Symbol ETHUSD
         {
-            TestDelegate test = () =>
+            get
             {
-                var brokerage = (KrakenBrokerage)Brokerage;
-
-                var historyProvider = new BrokerageHistoryProvider();
-                historyProvider.SetBrokerage(brokerage);
-                historyProvider.Initialize(new HistoryProviderInitializeParameters(null, null, null, null, null, null, null, false, new DataPermissionManager(), null));
-
-                var now = DateTime.UtcNow;
-
-                var requests = new[]
+                if (_ethusd == null)
                 {
-                    new HistoryRequest(now.Add(-period),
-                                       now,
-                                       typeof(TradeBar),
-                                       symbol,
-                                       resolution,
-                                       SecurityExchangeHours.AlwaysOpen(TimeZones.Utc),
-                                       DateTimeZone.Utc,
-                                       Resolution.Minute,
-                                       false,
-                                       false,
-                                       DataNormalizationMode.Adjusted,
-                                       TickType.Trade)
-                };
-
-                var history = historyProvider.GetHistory(requests, TimeZones.Utc);
-                
-                foreach (var slice in history)
-                {
-                    var bar = slice.Bars[symbol];
-
-                    Log.Debug($"{bar.Time}: {bar}");
+                    TestGlobals.Initialize();
+                    _ethusd = Symbol.Create("ETHUSD", SecurityType.Crypto, Market.Kraken);
                 }
 
-                Log.Trace("Data points retrieved: " + historyProvider.DataPointCount);
-            };
-
-            if (throwsException)
-            {
-                Assert.Throws<ArgumentException>(test);
-            }
-            else
-            {
-                Assert.DoesNotThrow(test);
+                return _ethusd;
             }
         }
 
         [Test]
-        [TestCaseSource(nameof(NoHistory))]
-        public void GetEmptyHistory(Symbol symbol, Resolution resolution, TimeSpan period)
+        [TestCaseSource(nameof(ValidHistory))]
+        [TestCaseSource(nameof(InvalidHistory))]
+        public void GetsHistory(Symbol symbol, Resolution resolution, TickType tickType, TimeSpan period, bool unsupported)
         {
-            TestDelegate test = () =>
+            var brokerage = unsupported ? TestableKrakenBrokerage.Create() : (KrakenBrokerage)Brokerage;
+
+            var now = DateTime.UtcNow;
+            var request = new HistoryRequest(now.Add(-period),
+                now,
+                typeof(TradeBar),
+                symbol,
+                resolution,
+                SecurityExchangeHours.AlwaysOpen(TimeZones.Utc),
+                DateTimeZone.Utc,
+                Resolution.Minute,
+                false,
+                false,
+                DataNormalizationMode.Adjusted,
+                tickType);
+
+            var history = brokerage.GetHistory(request)?.ToList();
+
+            if (unsupported)
             {
-                var brokerage = (KrakenBrokerage)Brokerage;
+                Assert.IsNull(history);
+                return;
+            }
 
-                var historyProvider = new BrokerageHistoryProvider();
-                historyProvider.SetBrokerage(brokerage);
-                historyProvider.Initialize(new HistoryProviderInitializeParameters(null, null, null, null, null, null, null,false, new DataPermissionManager(), null));
+            Assert.IsNotNull(history);
 
-                var now = DateTime.UtcNow;
+            foreach (var bar in history.Cast<TradeBar>())
+            {
+                Log.Debug($"{bar.Time}: {bar}");
+            }
 
-                var requests = new[]
-                {
-                    new HistoryRequest(now.Add(-period),
-                                       now,
-                                       typeof(TradeBar),
-                                       symbol,
-                                       resolution,
-                                       SecurityExchangeHours.AlwaysOpen(TimeZones.Utc),
-                                       DateTimeZone.Utc,
-                                       Resolution.Minute,
-                                       false,
-                                       false,
-                                       DataNormalizationMode.Adjusted,
-                                       TickType.Trade)
-                };
-
-                var history = historyProvider.GetHistory(requests, TimeZones.Utc).ToList();
-
-                Log.Trace("Data points retrieved: " + historyProvider.DataPointCount);
-                Assert.AreEqual(0, historyProvider.DataPointCount);
-                Assert.IsEmpty(history);
-            };
-
-            Assert.DoesNotThrow(test);
+            Log.Trace("Data points retrieved: " + history.Count);
         }
 
         private static TestCaseData[] ValidHistory
@@ -129,27 +88,10 @@ namespace QuantConnect.Tests.Brokerages.Kraken
                 return new[]
                 {
                     // valid
-                    new TestCaseData(Symbol.Create("ETHUSD", SecurityType.Crypto, Market.Kraken), Resolution.Tick, Time.OneHour, false),
-                    new TestCaseData(Symbol.Create("ETHUSD", SecurityType.Crypto, Market.Kraken), Resolution.Minute, Time.OneDay, false),
-                    new TestCaseData(Symbol.Create("ETHUSD", SecurityType.Crypto, Market.Kraken), Resolution.Hour, TimeSpan.FromDays(30), false),
-                    new TestCaseData(Symbol.Create("ETHUSD", SecurityType.Crypto, Market.Kraken), Resolution.Daily, TimeSpan.FromDays(15), false),
-                };
-            }
-        }
-
-        private static TestCaseData[] NoHistory
-        {
-            get
-            {
-                return new[]
-                {
-                    new TestCaseData(Symbol.Create("ETHUSD", SecurityType.Crypto, Market.Kraken), Resolution.Second, Time.OneMinute),
-                    
-                    // invalid security type, no error, empty result"
-                    new TestCaseData(Symbols.AAPL, Resolution.Daily, TimeSpan.FromDays(15)),
-                    
-                    // invalid period, no error, empty result
-                    new TestCaseData(Symbols.EURUSD, Resolution.Daily, TimeSpan.FromDays(-15)),
+                    new TestCaseData(ETHUSD, Resolution.Tick, TickType.Trade, Time.OneHour, false),
+                    new TestCaseData(ETHUSD, Resolution.Minute, TickType.Trade, Time.OneDay, false),
+                    new TestCaseData(ETHUSD, Resolution.Hour, TickType.Trade, TimeSpan.FromDays(30), false),
+                    new TestCaseData(ETHUSD, Resolution.Daily, TickType.Trade, TimeSpan.FromDays(15), false),
                 };
             }
         }
@@ -158,11 +100,47 @@ namespace QuantConnect.Tests.Brokerages.Kraken
         {
             get
             {
+                TestGlobals.Initialize();
                 return new[]
                 {
-                    // invalid symbol, throws "System.ArgumentException : Unknown symbol: XYZ"
-                    new TestCaseData(Symbol.Create("XYZ", SecurityType.Crypto, Market.Kraken), Resolution.Daily, TimeSpan.FromDays(15), true)
+                    // invalid symbol
+                    new TestCaseData(Symbol.Create("XYZ", SecurityType.Crypto, Market.Kraken), Resolution.Daily, TickType.Trade, TimeSpan.FromDays(15), true),
+
+                    // invalid security type
+                    new TestCaseData(Symbols.AAPL, Resolution.Daily, TickType.Trade, TimeSpan.FromDays(15), true),
+
+                    // invalid resolution
+                    new TestCaseData(ETHUSD, Resolution.Second, TickType.Trade, TimeSpan.FromDays(15), true),
+
+                    // invalid tick type
+                    new TestCaseData(ETHUSD, Resolution.Daily, TickType.Quote, TimeSpan.FromDays(15), true),
+                    new TestCaseData(ETHUSD, Resolution.Daily, TickType.OpenInterest, TimeSpan.FromDays(15), true),
+
+                    // invalid period
+                    new TestCaseData(ETHUSD, Resolution.Daily, TickType.Trade, TimeSpan.FromDays(-15), true),
+
                 };
+            }
+        }
+
+        private class TestableKrakenBrokerage : KrakenBrokerage
+        {
+            public TestableKrakenBrokerage()
+            {
+            }
+
+            public override void Connect()
+            {
+            }
+
+            public static TestableKrakenBrokerage Create()
+            {
+                var brokerage = new TestableKrakenBrokerage();
+
+                var factory = new KrakenBrokerageFactory();
+                brokerage.SetJob(new Packets.LiveNodePacket() { BrokerageData = factory.BrokerageData });
+
+                return brokerage;
             }
         }
     }

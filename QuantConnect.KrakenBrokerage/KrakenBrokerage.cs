@@ -62,6 +62,11 @@ namespace QuantConnect.Brokerages.Kraken
 
         private readonly ConcurrentDictionary<int, decimal> _fills = new ConcurrentDictionary<int, decimal>();
 
+        private bool _loggedUnsupportedAssetForHistory;
+        private bool _loggedUnsupportedResolutionForHistory;
+        private bool _loggedUnsupportedTickTypeForHistory;
+        private bool _loggedInvalidDateRangeForHistory;
+
         /// <summary>
         /// Constructor for brokerage
         /// </summary>
@@ -387,7 +392,6 @@ namespace QuantConnect.Brokerages.Kraken
             return true;
         }
 
-
         /// <summary>
         /// Gets the history for the requested security
         /// </summary>
@@ -395,25 +399,48 @@ namespace QuantConnect.Brokerages.Kraken
         /// <returns>An enumerable of bars covering the span specified in the request</returns>
         public override IEnumerable<BaseData> GetHistory(HistoryRequest request)
         {
+            if (!CanSubscribe(request.Symbol))
+            {
+                if (!_loggedUnsupportedAssetForHistory)
+                {
+                    _loggedUnsupportedAssetForHistory = true;
+                    OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, "UnsupportedAssert",
+                        $"Unsupported asset {request.Symbol} Make sure your asserts are of {SecurityType.Crypto} type only."));
+                }
+                return null;
+            }
+
             if (request.Resolution == Resolution.Second)
             {
-                OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, "InvalidResolution",
-                    $"{request.Resolution} resolution is not supported, no history returned"));
-                yield break;
+                if (!_loggedUnsupportedResolutionForHistory)
+                {
+                    _loggedUnsupportedResolutionForHistory = true;
+                    OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, "InvalidResolution",
+                        $"{request.Resolution} resolution is not supported, no history returned"));
+                }
+                return null;
             }
 
             if (request.TickType != TickType.Trade)
             {
-                OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, "InvalidTickType",
-                    $"{request.TickType} tick type not supported, no history returned"));
-                yield break;
+                if (!_loggedUnsupportedTickTypeForHistory)
+                {
+                    _loggedUnsupportedTickTypeForHistory = true;
+                    OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, "InvalidTickType",
+                        $"{request.TickType} tick type not supported, no history returned"));
+                }
+                return null;
             }
 
-            if (request.Symbol.SecurityType != SecurityType.Crypto)
+            if (request.StartTimeUtc >= request.EndTimeUtc)
             {
-                OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, "InvalidSecurityType",
-                    $"{request.Symbol.SecurityType} tick type not supported, no history returned. Use only {SecurityType.Crypto} type."));
-                yield break;
+                if (!_loggedInvalidDateRangeForHistory)
+                {
+                    _loggedInvalidDateRangeForHistory = true;
+                    OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, "InvalidDateRange",
+                        "The history request start date must precede the end date. No history returned."));
+                }
+                return null;
             }
 
             var period = request.Resolution.ToTimeSpan();
@@ -426,11 +453,9 @@ namespace QuantConnect.Brokerages.Kraken
 
             var marketSymbol = _symbolMapper.GetBrokerageSymbol(request.Symbol);
 
-            var enumerator = request.Resolution == Resolution.Tick ? GetTradeBars(request, marketSymbol) : GetOhlcBars(request, marketSymbol, period);
-            foreach (var baseData in enumerator)
-            {
-                yield return baseData;
-            }
+            return request.Resolution == Resolution.Tick
+                ? GetTradeBars(request, marketSymbol)
+                : GetOhlcBars(request, marketSymbol, period);
         }
 
         /// <summary>

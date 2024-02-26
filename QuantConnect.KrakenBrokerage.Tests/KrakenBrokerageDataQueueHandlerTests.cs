@@ -29,6 +29,7 @@ namespace QuantConnect.Tests.Brokerages.Kraken
         {
             get
             {
+                TestGlobals.Initialize();
                 return new[]
                 {
                     new TestCaseData(Symbol.Create("EURUSD", SecurityType.Crypto, Market.Kraken), Resolution.Tick, 10000, false),

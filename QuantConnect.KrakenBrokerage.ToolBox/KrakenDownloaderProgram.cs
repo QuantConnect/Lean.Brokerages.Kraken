@@ -53,8 +53,13 @@ namespace QuantConnect.ToolBox.KrakenDataDownloader
                     // Download data
                     var pairObject = Symbol.Create(pair, SecurityType.Crypto, Market.Kraken);
                     var data = downloader.Get(new DataDownloaderGetParameters(pairObject, castResolution == Resolution.Second ? Resolution.Tick : castResolution, startDate, endDate));
+                    if (data == null)
+                    {
+                        continue;
+                    }
+
                     var bars = data.Cast<TradeBar>().ToList();
-                    
+
                     // Write data
                     var writer = new LeanDataWriter(castResolution, pairObject, dataDirectory);
 
@@ -71,7 +76,7 @@ namespace QuantConnect.ToolBox.KrakenDataDownloader
                 Log.Error(err);
             }
         }
-        
+
         /// <summary>
         /// Endpoint for downloading exchange info
         /// </summary>
