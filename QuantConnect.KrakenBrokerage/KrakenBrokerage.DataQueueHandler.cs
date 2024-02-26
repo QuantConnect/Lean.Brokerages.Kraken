@@ -393,7 +393,7 @@ namespace QuantConnect.Brokerages.Kraken
         {
             return !symbol.Value.Contains("UNIVERSE") &&
                 symbol.SecurityType == SecurityType.Crypto &&
-                symbol.ID.Market != Market.Kraken &&
+                symbol.ID.Market == Market.Kraken &&
                 _symbolMapper.IsKnownLeanSymbol(symbol);
         }
 
