@@ -54,22 +54,6 @@ namespace QuantConnect.ToolBox.KrakenDownloader
             var resolution = dataDownloaderGetParameters.Resolution;
             var startUtc = dataDownloaderGetParameters.StartUtc;
             var endUtc = dataDownloaderGetParameters.EndUtc;
-            var tickType = dataDownloaderGetParameters.TickType;
-
-            if (tickType != TickType.Trade)
-            {
-                yield break;
-            }
-
-            if (endUtc < startUtc)
-            {
-                throw new ArgumentException("The end date must be greater or equal than the start date.");
-            }
-
-            if (!_symbolMapper.IsKnownLeanSymbol(symbol))
-            {
-                throw new ArgumentException($"The ticker {symbol.Value} is not available in Kraken. Use Lean symbols for downloader (i.e BTCUSD, not XXBTZUSD)");
-            }
 
             var historyRequest = new HistoryRequest(
                 startUtc,
@@ -85,10 +69,7 @@ namespace QuantConnect.ToolBox.KrakenDownloader
                 DataNormalizationMode.Adjusted,
                 TickType.Trade);
 
-            foreach (var baseData in _brokerage.GetHistory(historyRequest))
-            {
-                yield return baseData;
-            }
+            return _brokerage.GetHistory(historyRequest);
         }
 
     }

@@ -16,7 +16,6 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Linq;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using QuantConnect.Brokerages.Kraken.Models;
@@ -41,7 +40,7 @@ namespace QuantConnect.Brokerages.Kraken
         /// Need Token to have access to auth wss
         /// </summary>
         private string WebsocketToken { get; set; }
-        
+
         private readonly ConcurrentDictionary<Symbol, KrakenOrderBook> _orderBooks = new ();
 
         private string _orderBookChannel;
@@ -95,11 +94,11 @@ namespace QuantConnect.Brokerages.Kraken
                 },
                 subscription = new
                 {
-                    depth = _orderBookDepth, 
+                    depth = _orderBookDepth,
                     name = "book"
                 }
             });
-            
+
             WebsocketSend(webSocket, new
             {
                 @event = "subscribe",
@@ -136,7 +135,7 @@ namespace QuantConnect.Brokerages.Kraken
                     name = "book"
                 }
             });
-            
+
             WebsocketSend(webSocket, new
             {
                 @event = "unsubscribe",
@@ -156,9 +155,9 @@ namespace QuantConnect.Brokerages.Kraken
         private void WebsocketSend(IWebSocket webSocket, object data)
         {
             var message = JsonConvert.SerializeObject(data);
-            
+
             _webSocketRateLimiter.WaitToProceed();
-            
+
             webSocket.Send(message);
         }
 
@@ -196,9 +195,9 @@ namespace QuantConnect.Brokerages.Kraken
             else if (token is JArray jToken)
             {
                 var channel = jToken[jToken.Count - 2].ToString();
-                
+
                 var symbol = _symbolMapper.GetSymbolFromWebsocket(jToken.Last.ToString());
-                
+
                 if (channel == _orderBookChannel)
                 {
                     if (jToken[1]["as"] != null || jToken[1]["bs"] != null) // snapshot
@@ -209,7 +208,7 @@ namespace QuantConnect.Brokerages.Kraken
                     {
                         ProcessOrderBookUpdate(symbol, jToken[1]);
                     }
-                    
+
                 }
                 else if (channel == "trade")
                 {
@@ -351,7 +350,7 @@ namespace QuantConnect.Brokerages.Kraken
                 throw;
             }
         }
-        
+
         private void EmitQuoteTick(Symbol symbol, decimal bidPrice, decimal bidSize, decimal askPrice, decimal askSize)
         {
             try
@@ -367,7 +366,7 @@ namespace QuantConnect.Brokerages.Kraken
                     BidSize = Math.Abs(bidSize),
                     Exchange = Market.Kraken
                 };
-            
+
                 tick.SetValue();
                 EmitTick(tick);
             }
@@ -392,11 +391,10 @@ namespace QuantConnect.Brokerages.Kraken
 
         private bool CanSubscribe(Symbol symbol)
         {
-            if (symbol.Value.Contains("UNIVERSE") || !_symbolMapper.IsKnownLeanSymbol(symbol) || symbol.ID.Market != Market.Kraken)
-            {
-                return false;
-            }
-            return true;
+            return !symbol.Value.Contains("UNIVERSE") &&
+                symbol.SecurityType == SecurityType.Crypto &&
+                symbol.ID.Market == Market.Kraken &&
+                _symbolMapper.IsKnownLeanSymbol(symbol);
         }
 
         private void OnBestBidAskUpdated(object sender, BestBidAskUpdatedEventArgs e)
@@ -409,7 +407,7 @@ namespace QuantConnect.Brokerages.Kraken
         #region IDataQueueHandler
 
         /// <summary>
-        /// Set websocket token. Needs when subscribing to private feeds 
+        /// Set websocket token. Needs when subscribing to private feeds
         /// </summary>
         private void SetWebsocketToken()
         {
