@@ -427,10 +427,12 @@ namespace QuantConnect.Brokerages.Kraken
         /// <param name="job">Job we're subscribing for</param>
         public void SetJob(LiveNodePacket job)
         {
-            if (!job.BrokerageData.TryGetValue("kraken-orderbook-depth", out var orderDepth))
+            var orderDepth = 10;
+            if (job.BrokerageData.TryGetValue("kraken-orderbook-depth", out var orderDepthStr))
             {
-                throw new ArgumentException($"KrakenBrokerage.SetJob(): missing value -- kraken-orderbook-depth");
+                orderDepth = orderDepthStr.ToInt32();
             }
+
             var aggregator = Composer.Instance.GetExportedValueByTypeName<IDataAggregator>(
                 Config.Get("data-aggregator", "QuantConnect.Lean.Engine.DataFeeds.AggregationManager"), forceTypeNameOnExisting: false);
 
@@ -438,7 +440,7 @@ namespace QuantConnect.Brokerages.Kraken
                 job.BrokerageData["kraken-api-key"],
                 job.BrokerageData["kraken-api-secret"],
                 job.BrokerageData["kraken-verification-tier"],
-                orderDepth.ToInt32(),
+                orderDepth,
                 null,
                 aggregator,
                 job);

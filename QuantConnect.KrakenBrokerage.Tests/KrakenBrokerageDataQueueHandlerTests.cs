@@ -19,6 +19,7 @@ using QuantConnect.Brokerages.Kraken;
 using QuantConnect.Data;
 using QuantConnect.Logging;
 using QuantConnect.Data.Market;
+using QuantConnect.Configuration;
 
 namespace QuantConnect.Tests.Brokerages.Kraken
 {
@@ -77,6 +78,25 @@ namespace QuantConnect.Tests.Brokerages.Kraken
             Thread.Sleep(5000);
 
             cancelationToken.Cancel();
+        }
+
+        [Test]
+        public void SetJobUsesOrderBookDepthDefaultValue()
+        {
+            using var brokerage = new KrakenBrokerage();
+
+            var packet = new Packets.LiveNodePacket()
+            {
+                BrokerageData =
+                {
+                    { "kraken-api-key", Config.Get("kraken-api-key") },
+                    { "kraken-api-secret", Config.Get("kraken-api-secret") },
+                    { "kraken-verification-tier", Config.Get("kraken-verification-tier") }
+                }
+            };
+
+            Assert.DoesNotThrow(() => brokerage.SetJob(packet));
+            Assert.IsTrue(brokerage.IsConnected);
         }
     }
 }
