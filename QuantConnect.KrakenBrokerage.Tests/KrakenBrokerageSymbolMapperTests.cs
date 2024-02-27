@@ -31,7 +31,7 @@ namespace QuantConnect.Tests.Brokerages.Kraken
                 {
                     new TestCaseData(Symbol.Create("EURUSD", SecurityType.Crypto, Market.Kraken), "ZEURZUSD", false),
                     new TestCaseData(Symbol.Create("BTCUSD", SecurityType.Crypto, Market.Kraken), "XXBTZUSD", false),
-                    new TestCaseData(Symbol.Create("ETHUSDT", SecurityType.Crypto, Market.Kraken), "ETHUSDT", false),
+                    new TestCaseData(Symbol.Create("ETHUSDT", SecurityType.Crypto, Market.Kraken), "XETHUSDT", false),
                     new TestCaseData(Symbol.Create("XRPBTC", SecurityType.Crypto, Market.Kraken), "XXRPXXBT", false),
                     new TestCaseData(Symbol.Create("ETHBTC", SecurityType.Crypto, Market.Kraken), "XETHXXBT", false),
                     new TestCaseData(Symbol.Create("XLMUSD", SecurityType.Crypto, Market.Kraken), "XXLMZUSD", false),
@@ -41,6 +41,7 @@ namespace QuantConnect.Tests.Brokerages.Kraken
                     new TestCaseData(Symbol.Create("ETHJPY", SecurityType.Crypto, Market.Kraken), "XETHZJPY", false),
                     new TestCaseData(Symbol.Create("LTCBTC", SecurityType.Crypto, Market.Kraken), "XLTCXXBT", false),
                     new TestCaseData(Symbol.Create("MLNBTC", SecurityType.Crypto, Market.Kraken), "XMLNXXBT", false),
+                    new TestCaseData(Symbol.Create("XDGEUR", SecurityType.Crypto, Market.Kraken), "XXDGZEUR", false),
                     new TestCaseData(Symbol.Create("EURBTC", SecurityType.Crypto, Market.Kraken), "", true), // no such a ticker on kraken
                     new TestCaseData(Symbol.Create("BTCUSD", SecurityType.Crypto, Market.Binance), "XXBTZUSD", true), // wrong Market
                     new TestCaseData(Symbol.Create("ETHUSDT", SecurityType.Future, Market.Kraken), "ETHUSDT", true), // wrong SecurityType
@@ -56,7 +57,7 @@ namespace QuantConnect.Tests.Brokerages.Kraken
                 {
                     new TestCaseData("ZEURZUSD", Symbol.Create("EURUSD", SecurityType.Crypto, Market.Kraken), false),
                     new TestCaseData("XXBTZUSD", Symbol.Create("BTCUSD", SecurityType.Crypto, Market.Kraken), false),
-                    new TestCaseData("ETHUSDT", Symbol.Create("ETHUSDT", SecurityType.Crypto, Market.Kraken), false),
+                    new TestCaseData("XETHUSDT", Symbol.Create("ETHUSDT", SecurityType.Crypto, Market.Kraken), false),
                     new TestCaseData("XXRPXXBT", Symbol.Create("XRPBTC", SecurityType.Crypto, Market.Kraken), false),
                     new TestCaseData("XETHXXBT", Symbol.Create("ETHBTC", SecurityType.Crypto, Market.Kraken), false),
                     new TestCaseData("XXLMZUSD", Symbol.Create("XLMUSD", SecurityType.Crypto, Market.Kraken), false),
@@ -66,6 +67,7 @@ namespace QuantConnect.Tests.Brokerages.Kraken
                     new TestCaseData("XETHZJPY", Symbol.Create("ETHJPY", SecurityType.Crypto, Market.Kraken), false),
                     new TestCaseData("XLTCXXBT", Symbol.Create("LTCBTC", SecurityType.Crypto, Market.Kraken), false),
                     new TestCaseData("XMLNXXBT", Symbol.Create("MLNBTC", SecurityType.Crypto, Market.Kraken), false),
+                    new TestCaseData("XXDGZEUR", Symbol.Create("XDGEUR", SecurityType.Crypto, Market.Kraken), false),
                     new TestCaseData("", Symbol.Create("EURBTC", SecurityType.Crypto, Market.Kraken), true), // no such a ticker on kraken
                 };
             }
@@ -89,6 +91,7 @@ namespace QuantConnect.Tests.Brokerages.Kraken
                     new TestCaseData(Symbol.Create("ETHJPY", SecurityType.Crypto, Market.Kraken), "ETH/JPY", false),
                     new TestCaseData(Symbol.Create("LTCBTC", SecurityType.Crypto, Market.Kraken), "LTC/XBT", false),
                     new TestCaseData(Symbol.Create("MLNBTC", SecurityType.Crypto, Market.Kraken), "MLN/XBT", false),
+                    new TestCaseData(Symbol.Create("XDGEUR", SecurityType.Crypto, Market.Kraken), "XDG/EUR", false),
                 };
             }
         }
