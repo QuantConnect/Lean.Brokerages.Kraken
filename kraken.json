@@ -13,5 +13,24 @@
 	"order-types": ["Market", "Limit", "Limit-If-Touched", "Stop Market", "Stop Limit"],
 	"assets": ["Crypto Spot"], 
 	"brokerage-url": "https://www.kraken.com/",
-	"documentation": "/docs/v2/cloud-platform/live-trading/brokerages/kraken"
+	"documentation": "/docs/v2/cloud-platform/live-trading/brokerages/kraken",
+	"module-specification": {
+		"download": {
+			"data-types": [
+				"Trade"
+			],
+			"resolutions": [
+				"Tick",
+				"Minute",
+				"Hour",
+				"Daily"
+			],
+			"security-types": [
+				"Crypto"
+			],
+			"markets": [
+				"Kraken"
+			]
+		}
+	}
 }
