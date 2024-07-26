@@ -239,11 +239,11 @@ namespace QuantConnect.Brokerages.Kraken
 
             var token = MakeRequest(query, "GetAccountHoldings", param, Method.POST, true);
 
-            var holdings = new List<Holding>();
+            var holdings = new Dictionary<Symbol, Holding>();
             var result = token["result"];
             if (result == null)
             {
-                return holdings;
+                return holdings.Values.ToList();
             }
 
             foreach (JProperty balance in result.Children())
@@ -252,7 +252,7 @@ namespace QuantConnect.Brokerages.Kraken
                 var holding = new Holding
                 {
                     Symbol = _symbolMapper.GetLeanSymbol(krakenPosition.Pair),
-                    Quantity = krakenPosition.Vol,
+                    Quantity = krakenPosition.Vol - krakenPosition.Vol_closed,
                     UnrealizedPnL = krakenPosition.Net,
                     MarketValue = krakenPosition.Value,
                 };
@@ -265,10 +265,19 @@ namespace QuantConnect.Brokerages.Kraken
                     holding.Quantity *= -1;
                 }
 
-                holdings.Add(holding);
+                if (holdings.ContainsKey(holding.Symbol))
+                {
+                    holdings[holding.Symbol].Quantity += holding.Quantity;
+                    holdings[holding.Symbol].UnrealizedPnL += holding.UnrealizedPnL;
+                    holdings[holding.Symbol].MarketValue += holding.MarketValue;
+                }
+                else
+                {
+                    holdings[holding.Symbol] = holding;
+                }
             }
 
-            return holdings;
+            return holdings.Values.ToList();
 
         }
 
