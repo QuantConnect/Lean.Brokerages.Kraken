@@ -248,6 +248,27 @@ namespace QuantConnect.Brokerages.Kraken
 
             foreach (JProperty balance in result.Children())
             {
+                /// When a position is open there are two ways to close it: Submitting
+                /// a close order for the same amount or submitting two or more orders
+                /// partially closing the open position. For example: If we submit an
+                /// order for 0.005 ETHBTC we could close it submitting an order for
+                /// -0.005 ETHBTC or one order for -0.003 followed by another of -0.002.
+                ///
+                /// Still, when we partially close a position, the quantity in the holding
+                /// response from Kraken API remains the same. Instead, the closed quantity
+                /// is mentioned in another property from the holding response. For example,
+                /// let's consider the previous case. After submitting the order for -0.003
+                /// ETHBTC and requesting the open positions to the Kraken API, the holding
+                /// for ETHBTC doesn't change, the quantity is still 0.005 but in another
+                /// property(vol_closed), the closed quantity -0.003 is mentioned.
+                ///
+                /// Another important factor to mention is that Kraken doesn't accumulate
+                /// order quantites into one single holding (except for a closing order).
+                /// When we open a second position and then request for the open positions,
+                /// we get two holdings with the same symbol. For example, let's suppose we
+                /// first open a position for 0.005 ETHBTC and then open another one for
+                /// 0.003, when we request for open positions we will get two holdings:
+                /// One for ETHBTC with 0.005 and the second one for ETHBTC with 0.003.
                 var krakenPosition = balance.Value.ToObject<KrakenOpenPosition>();
                 var holding = new Holding
                 {
@@ -265,11 +286,11 @@ namespace QuantConnect.Brokerages.Kraken
                     holding.Quantity *= -1;
                 }
 
-                if (holdings.ContainsKey(holding.Symbol))
+                if (holdings.TryGetValue(holding.Symbol, out var existentHolding))
                 {
-                    holdings[holding.Symbol].Quantity += holding.Quantity;
-                    holdings[holding.Symbol].UnrealizedPnL += holding.UnrealizedPnL;
-                    holdings[holding.Symbol].MarketValue += holding.MarketValue;
+                    existentHolding.Quantity += holding.Quantity;
+                    existentHolding.UnrealizedPnL += holding.UnrealizedPnL;
+                    existentHolding.MarketValue += holding.MarketValue;
                 }
                 else
                 {
