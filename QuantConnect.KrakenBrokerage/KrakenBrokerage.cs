@@ -239,20 +239,43 @@ namespace QuantConnect.Brokerages.Kraken
 
             var token = MakeRequest(query, "GetAccountHoldings", param, Method.POST, true);
 
-            var holdings = new List<Holding>();
+            var holdings = new Dictionary<Symbol, Holding>();
             var result = token["result"];
             if (result == null)
             {
-                return holdings;
+                return holdings.Values.ToList();
             }
 
             foreach (JProperty balance in result.Children())
             {
+                /// When a position is open there are two ways to close it: Submitting
+                /// a close order for the same amount or submitting two or more orders
+                /// partially closing the open position. For example: If we submit an
+                /// order for 0.005 ETHBTC we could close it submitting an order for
+                /// -0.005 ETHBTC or one order for -0.003 followed by another of -0.002.
+                ///
+                /// Still, when we partially close a position, the quantity in the holding
+                /// response from Kraken API remains the same. Instead, the closed quantity
+                /// is mentioned in another property from the holding response. For example,
+                /// let's consider the previous case. After submitting the order for -0.003
+                /// ETHBTC and requesting the open positions to the Kraken API, the holding
+                /// for ETHBTC doesn't change, the quantity is still 0.005 but in another
+                /// property(vol_closed), the closed quantity -0.003 is mentioned.
+                ///
+                /// Another important factor to mention is that Kraken doesn't accumulate
+                /// order quantites into one single holding (except for a closing order).
+                /// When we open a second position and then request for the open positions,
+                /// we get two holdings with the same symbol. For example, let's suppose we
+                /// first open a position for 0.005 ETHBTC and then open another one for
+                /// 0.003, when we request for open positions we will get two holdings:
+                /// One for ETHBTC with 0.005 and the second one for ETHBTC with 0.003.
+                ///
+                /// For more information see: https://docs.kraken.com/api/docs/rest-api/get-open-positions/
                 var krakenPosition = balance.Value.ToObject<KrakenOpenPosition>();
                 var holding = new Holding
                 {
                     Symbol = _symbolMapper.GetLeanSymbol(krakenPosition.Pair),
-                    Quantity = krakenPosition.Vol,
+                    Quantity = krakenPosition.Vol - krakenPosition.Vol_closed,
                     UnrealizedPnL = krakenPosition.Net,
                     MarketValue = krakenPosition.Value,
                 };
@@ -265,10 +288,19 @@ namespace QuantConnect.Brokerages.Kraken
                     holding.Quantity *= -1;
                 }
 
-                holdings.Add(holding);
+                if (holdings.TryGetValue(holding.Symbol, out var existentHolding))
+                {
+                    existentHolding.Quantity += holding.Quantity;
+                    existentHolding.UnrealizedPnL += holding.UnrealizedPnL;
+                    existentHolding.MarketValue += holding.MarketValue;
+                }
+                else
+                {
+                    holdings[holding.Symbol] = holding;
+                }
             }
 
-            return holdings;
+            return holdings.Values.ToList();
 
         }
 

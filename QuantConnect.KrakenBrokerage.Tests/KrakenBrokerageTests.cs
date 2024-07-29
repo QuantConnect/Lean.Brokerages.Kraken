@@ -50,7 +50,8 @@ namespace QuantConnect.Tests.Brokerages.Kraken
             {
                 {Symbol, CreateSecurity(Symbol)}
             };
-            
+            securities[Symbol].MarginModel = new SecurityMarginModel(leverage: Leverage);
+
             var transactions = new SecurityTransactionManager(null, securities);
             transactions.SetOrderProcessor(new FakeOrderProcessor());
 
@@ -89,6 +90,8 @@ namespace QuantConnect.Tests.Brokerages.Kraken
         protected override Symbol Symbol => StaticSymbol;
 
         private static Symbol StaticSymbol => Symbol.Create("BTCUSD", SecurityType.Crypto, Market.Kraken);
+
+        private static decimal Leverage => 1;
 
         public static TestCaseData[] OrderParameters => new[]
         {
@@ -194,6 +197,77 @@ namespace QuantConnect.Tests.Brokerages.Kraken
 
             var after = Brokerage.GetAccountHoldings();
             Assert.AreEqual(0, after.Count());
+        }
+
+        [Test, Description("In Kraken AccountHoldings would always return 0 as long as leverage 1." +
+            " Set Leverage property to a value higher than 1 so that this unit test can work")]
+        public void GetAccountHoldingsWhenClosedAPosition()
+        {
+            Log.Trace("");
+            Log.Trace("GET ACCOUNT HOLDINGS");
+            Log.Trace("");
+            var before = Brokerage.GetAccountHoldings();
+
+            PlaceOrderWaitForStatus(new MarketOrder(Symbol, GetDefaultQuantity(), DateTime.UtcNow));
+
+            Thread.Sleep(3000);
+
+            var after = Brokerage.GetAccountHoldings();
+            Assert.AreEqual(before.Count + 1, after.Count);
+
+            PlaceOrderWaitForStatus(new MarketOrder(Symbol, -GetDefaultQuantity(), DateTime.UtcNow));
+
+            var afterClosingPosition = Brokerage.GetAccountHoldings();
+            Assert.AreEqual(before.Count, afterClosingPosition.Count);
+        }
+
+        [Test, Description("In Kraken AccountHoldings would always return 0 as long as leverage 1." +
+            " Set Leverage property to a value higher than 1 so that this unit test can work")]
+        public void GetAccountHoldingsWhenPartiallyClosedAPosition()
+        {
+            Log.Trace("");
+            Log.Trace("GET ACCOUNT HOLDINGS");
+            Log.Trace("");
+            var before = Brokerage.GetAccountHoldings();
+
+            PlaceOrderWaitForStatus(new MarketOrder(Symbol, GetDefaultQuantity() * 2, DateTime.UtcNow));
+
+            Thread.Sleep(3000);
+
+            var beforeClosingAPosition = Brokerage.GetAccountHoldings();
+            var lastPositionQuantity = beforeClosingAPosition.LastOrDefault().Quantity;
+            Assert.AreEqual(GetDefaultQuantity() * 2, lastPositionQuantity);
+
+            PlaceOrderWaitForStatus(new MarketOrder(Symbol, -GetDefaultQuantity(), DateTime.UtcNow));
+
+            var afterClosingAPosition = Brokerage.GetAccountHoldings();
+            lastPositionQuantity = afterClosingAPosition.LastOrDefault().Quantity;
+            Assert.AreEqual(GetDefaultQuantity(), lastPositionQuantity);
+        }
+
+        [Test, Description("In Kraken AccountHoldings would always return 0 as long as leverage 1." +
+            " Set Leverage property to a value higher than 1 so that this unit test can work")]
+        public void GetAccountHoldingsDoesNotCreateTwoHoldingsForTheSameSymbol()
+        {
+            Log.Trace("");
+            Log.Trace("GET ACCOUNT HOLDINGS");
+            Log.Trace("");
+            var before = Brokerage.GetAccountHoldings();
+
+            PlaceOrderWaitForStatus(new MarketOrder(Symbol, GetDefaultQuantity(), DateTime.UtcNow));
+
+            Thread.Sleep(3000);
+
+            var beforeClosingAPosition = Brokerage.GetAccountHoldings();
+            var lastPositionQuantity = beforeClosingAPosition.Where(x => x.Symbol == Symbol).SingleOrDefault().Quantity;
+            Assert.AreEqual(GetDefaultQuantity(), lastPositionQuantity);
+
+            PlaceOrderWaitForStatus(new MarketOrder(Symbol, GetDefaultQuantity(), DateTime.UtcNow));
+
+            var afterClosingAPosition = Brokerage.GetAccountHoldings();
+            lastPositionQuantity = afterClosingAPosition.Where(x => x.Symbol == Symbol).SingleOrDefault().Quantity;
+            Assert.AreEqual(before.Count + 1, afterClosingAPosition.Count);
+            Assert.AreEqual(GetDefaultQuantity() * 2, lastPositionQuantity);
         }
 
         [Test]
