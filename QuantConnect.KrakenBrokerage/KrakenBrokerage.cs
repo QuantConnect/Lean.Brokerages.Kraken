@@ -269,6 +269,8 @@ namespace QuantConnect.Brokerages.Kraken
                 /// first open a position for 0.005 ETHBTC and then open another one for
                 /// 0.003, when we request for open positions we will get two holdings:
                 /// One for ETHBTC with 0.005 and the second one for ETHBTC with 0.003.
+                ///
+                /// For more information see: https://docs.kraken.com/api/docs/rest-api/get-open-positions/
                 var krakenPosition = balance.Value.ToObject<KrakenOpenPosition>();
                 var holding = new Holding
                 {
