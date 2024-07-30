@@ -270,6 +270,14 @@ namespace QuantConnect.Brokerages.Kraken
                 /// 0.003, when we request for open positions we will get two holdings:
                 /// One for ETHBTC with 0.005 and the second one for ETHBTC with 0.003.
                 ///
+                /// Furthermore, when a sell order is placed, the parameter `vol` in the
+                /// Kraken API response is still positive. Instead, the parameter `type`
+                /// changes to be sell. Indeed, even when another buy order for a smaller
+                /// quantity is placed, the `vol` parameter is still positive and the
+                /// positive quantity of the buy order is mentioned in the `vol_closed`
+                /// parameter. That's why we need to first substract the vol_closed amount
+                /// and then apply the type of the order.
+                ///
                 /// For more information see: https://docs.kraken.com/api/docs/rest-api/get-open-positions/
                 var krakenPosition = balance.Value.ToObject<KrakenOpenPosition>();
                 var holding = new Holding

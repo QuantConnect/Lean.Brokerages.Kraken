@@ -199,75 +199,36 @@ namespace QuantConnect.Tests.Brokerages.Kraken
             Assert.AreEqual(0, after.Count());
         }
 
+        [TestCase(1, -1, 0, 0)] // Get account holdings after open and closing a position
+        [TestCase(2, -1, 1, 1)] // Get account holdings after buying and selling orders
+        [TestCase(1, 1, 1, 2)] // Get account holdings and not create two holdings for the same symbol
+        [TestCase(-2, 1, 1, -1)] // Get account holdings after selling and buying orders
         [Test, Description("In Kraken AccountHoldings would always return 0 as long as leverage 1." +
             " Set Leverage property to a value higher than 1 so that this unit test can work")]
-        public void GetAccountHoldingsWhenClosedAPosition()
+        public void GetAccountHoldingAfterOrders(decimal firstOrderFactor, decimal secondOrderFactor, int numberOfAdditionalOrders, decimal finalQuantityFactor)
         {
             Log.Trace("");
             Log.Trace("GET ACCOUNT HOLDINGS");
             Log.Trace("");
             var before = Brokerage.GetAccountHoldings();
 
-            PlaceOrderWaitForStatus(new MarketOrder(Symbol, GetDefaultQuantity(), DateTime.UtcNow));
+            PlaceOrderWaitForStatus(new MarketOrder(Symbol, GetDefaultQuantity() * firstOrderFactor, DateTime.UtcNow));
 
             Thread.Sleep(3000);
 
-            var after = Brokerage.GetAccountHoldings();
-            Assert.AreEqual(before.Count + 1, after.Count);
+            var afterFirstOrder = Brokerage.GetAccountHoldings();
+            var quantityAfterFirstOrder = afterFirstOrder.LastOrDefault().Quantity;
+            Assert.AreEqual(GetDefaultQuantity() * firstOrderFactor, quantityAfterFirstOrder);
 
-            PlaceOrderWaitForStatus(new MarketOrder(Symbol, -GetDefaultQuantity(), DateTime.UtcNow));
+            PlaceOrderWaitForStatus(new MarketOrder(Symbol, GetDefaultQuantity() * secondOrderFactor, DateTime.UtcNow));
 
-            var afterClosingPosition = Brokerage.GetAccountHoldings();
-            Assert.AreEqual(before.Count, afterClosingPosition.Count);
-        }
-
-        [Test, Description("In Kraken AccountHoldings would always return 0 as long as leverage 1." +
-            " Set Leverage property to a value higher than 1 so that this unit test can work")]
-        public void GetAccountHoldingsWhenPartiallyClosedAPosition()
-        {
-            Log.Trace("");
-            Log.Trace("GET ACCOUNT HOLDINGS");
-            Log.Trace("");
-            var before = Brokerage.GetAccountHoldings();
-
-            PlaceOrderWaitForStatus(new MarketOrder(Symbol, GetDefaultQuantity() * 2, DateTime.UtcNow));
-
-            Thread.Sleep(3000);
-
-            var beforeClosingAPosition = Brokerage.GetAccountHoldings();
-            var lastPositionQuantity = beforeClosingAPosition.LastOrDefault().Quantity;
-            Assert.AreEqual(GetDefaultQuantity() * 2, lastPositionQuantity);
-
-            PlaceOrderWaitForStatus(new MarketOrder(Symbol, -GetDefaultQuantity(), DateTime.UtcNow));
-
-            var afterClosingAPosition = Brokerage.GetAccountHoldings();
-            lastPositionQuantity = afterClosingAPosition.LastOrDefault().Quantity;
-            Assert.AreEqual(GetDefaultQuantity(), lastPositionQuantity);
-        }
-
-        [Test, Description("In Kraken AccountHoldings would always return 0 as long as leverage 1." +
-            " Set Leverage property to a value higher than 1 so that this unit test can work")]
-        public void GetAccountHoldingsDoesNotCreateTwoHoldingsForTheSameSymbol()
-        {
-            Log.Trace("");
-            Log.Trace("GET ACCOUNT HOLDINGS");
-            Log.Trace("");
-            var before = Brokerage.GetAccountHoldings();
-
-            PlaceOrderWaitForStatus(new MarketOrder(Symbol, GetDefaultQuantity(), DateTime.UtcNow));
-
-            Thread.Sleep(3000);
-
-            var beforeClosingAPosition = Brokerage.GetAccountHoldings();
-            var lastPositionQuantity = beforeClosingAPosition.Where(x => x.Symbol == Symbol).SingleOrDefault().Quantity;
-            Assert.AreEqual(GetDefaultQuantity(), lastPositionQuantity);
-
-            PlaceOrderWaitForStatus(new MarketOrder(Symbol, GetDefaultQuantity(), DateTime.UtcNow));
-
-            var afterClosingAPosition = Brokerage.GetAccountHoldings();
-            lastPositionQuantity = afterClosingAPosition.Where(x => x.Symbol == Symbol).SingleOrDefault().Quantity;
-            Assert.AreEqual(before.Count + 1, afterClosingAPosition.Count);
-            Assert.AreEqual(GetDefaultQuantity() * 2, lastPositionQuantity);
+            var afterSecondOrder = Brokerage.GetAccountHoldings();
+            var quantityAfterSecondOrder = afterSecondOrder.LastOrDefault().Quantity;
+            Assert.AreEqual(before.Count + numberOfAdditionalOrders, afterSecondOrder.Count);
+            if (numberOfAdditionalOrders > 0)
+            {
+                Assert.AreEqual(GetDefaultQuantity() * finalQuantityFactor, quantityAfterSecondOrder);
+            }
         }
 
         [Test]
