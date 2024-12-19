@@ -48,7 +48,7 @@ namespace QuantConnect.Tests.Brokerages.Kraken
 
             var securities = new SecurityManager(new TimeKeeper(DateTime.UtcNow, TimeZones.NewYork))
             {
-                {Symbol, CreateSecurity(Symbol)}
+                {Symbol, SecurityProvider.GetSecurity(Symbol)}
             };
             securities[Symbol].MarginModel = new SecurityMarginModel(leverage: Leverage);
 
