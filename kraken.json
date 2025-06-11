@@ -1,4 +1,7 @@
 {
+	"name" : "Kraken",
+	"logo-url" : "https://cdn.quantconnect.com/i/tu/kraken-logo.svg",
+	"min-deposit" : "10 USD",
 	"description": "Kraken is a regulated US crypto spot exchange. They provide staking services, educational content, and a developer grant program.",
 	
 	"platforms-features": [
