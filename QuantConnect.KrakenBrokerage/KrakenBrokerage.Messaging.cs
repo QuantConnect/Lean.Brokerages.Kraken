@@ -67,6 +67,7 @@ namespace QuantConnect.Brokerages.Kraken
                         OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Information, 200, $"KrakenWS system status: {token["status"]}"));
                         return;
                     }
+                    Log.Trace($"{nameof(KrakenBrokerage)}.{nameof(OnMessage)}.JSON: {data.Message}");
 
                     if (response.Event == "addOrderStatus")
                     {
