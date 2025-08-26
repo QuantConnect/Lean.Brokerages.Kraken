@@ -384,6 +384,7 @@ namespace QuantConnect.Brokerages.Kraken
             var parameters = CreateKrakenOrder(order);
 
             var json = JsonConvert.SerializeObject(parameters);
+            Log.Trace($"{nameof(KrakenBrokerage)}.{nameof(PlaceOrder)}.JSON: {json}");
 
             _rateLimiter.OrderRateLimitCheck(order.Symbol);
 
