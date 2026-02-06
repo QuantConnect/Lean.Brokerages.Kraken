@@ -68,6 +68,11 @@ namespace QuantConnect.Brokerages.Kraken
         private bool _loggedInvalidDateRangeForHistory;
 
         /// <summary>
+        /// Enables or disables concurrent processing of messages to and from the brokerage.
+        /// </summary>
+        public override bool ConcurrencyEnabled => true;
+
+        /// <summary>
         /// Constructor for brokerage
         /// </summary>
         public KrakenBrokerage() : base("Kraken")
@@ -408,12 +413,10 @@ namespace QuantConnect.Brokerages.Kraken
         /// <returns>True if the request was submitted for cancellation, false otherwise</returns>
         public override bool CancelOrder(Order order)
         {
-            Log.Trace("KrakenBrokerage.CancelOrder(): {0}", order);
-
             if (!order.BrokerId.Any())
             {
                 // we need the brokerage order id in order to perform a cancellation
-                Log.Trace("KrakenBrokerage.CancelOrder(): Unable to cancel order without BrokerId.");
+                OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, -1, $"{nameof(KrakenBrokerage)}.{nameof(CancelOrder)}(): Order {order.Id} has no BrokerId"));
                 return false;
             }
 
