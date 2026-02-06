@@ -444,11 +444,6 @@ namespace QuantConnect.Brokerages.Kraken
                 null,
                 aggregator,
                 job);
-
-            if (!IsConnected)
-            {
-                Connect();
-            }
         }
 
         /// <summary>
@@ -458,8 +453,6 @@ namespace QuantConnect.Brokerages.Kraken
         {
             if (WebSocket.IsOpen)
             {
-               SetWebsocketToken();
-
                 WebSocket.Send(JsonConvert.SerializeObject(new
                 {
                     @event = "subscribe",

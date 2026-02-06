@@ -379,8 +379,6 @@ namespace QuantConnect.Brokerages.Kraken
         /// <returns>Order placed or not</returns>
         public override bool PlaceOrder(Order order)
         {
-            SetWebsocketToken();
-
             var parameters = CreateKrakenOrder(order);
 
             var json = JsonConvert.SerializeObject(parameters);
@@ -419,7 +417,6 @@ namespace QuantConnect.Brokerages.Kraken
                 return false;
             }
 
-            SetWebsocketToken();
             var json = JsonConvert.SerializeObject(new
             {
                 @event = "cancelOrder",
@@ -515,6 +512,9 @@ namespace QuantConnect.Brokerages.Kraken
             {
                 return;
             }
+
+            ValidateSubscription();
+
             base.Initialize(_wsAuthUrl, new KrakenWebSocketWrapper(null), new RestClient(_apiUrl), apiKey, apiSecret);
             _algorithm = algorithm;
             _job = job;
@@ -538,9 +538,11 @@ namespace QuantConnect.Brokerages.Kraken
                 TimeSpan.Zero,
                 _webSocketRateLimiter);
 
-            WebSocket.Open += (sender, args) => { SubscribeAuth(); };
-
-            ValidateSubscription();
+            if (algorithm != null)
+            {
+                SetWebsocketToken();
+                WebSocket.Open += (sender, args) => { SubscribeAuth(); };
+            }
         }
 
         /// <summary>
@@ -809,8 +811,8 @@ namespace QuantConnect.Brokerages.Kraken
                 {
                     information.Add("organizationId", organizationId);
                 }
-                var request = new RestRequest("modules/license/read", Method.POST) { RequestFormat = DataFormat.Json };
-                request.AddParameter("application/json", JsonConvert.SerializeObject(information), ParameterType.RequestBody);
+                // Create HTTP request
+                using var request = ApiUtils.CreateJsonPostRequest("modules/license/read", information);
                 api.TryRequest(request, out ModulesReadLicenseRead result);
                 if (!result.Success)
                 {
@@ -837,7 +839,7 @@ namespace QuantConnect.Brokerages.Kraken
                     var buffer = Convert.FromBase64String(info[0]);
                     var iv = Convert.FromBase64String(info[1]);
                     // Decrypt our information
-                    using var aes = new AesManaged();
+                    using var aes = Aes.Create();
                     var decryptor = aes.CreateDecryptor(key, iv);
                     using var memoryStream = new MemoryStream(buffer);
                     using var cryptoStream = new CryptoStream(memoryStream, decryptor, CryptoStreamMode.Read);
