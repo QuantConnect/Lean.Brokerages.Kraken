@@ -212,7 +212,7 @@ namespace QuantConnect.Brokerages.Kraken
                 }
                 else if (channel == "trade")
                 {
-                    ParseTradeMessage(symbol, jToken[1].ToObject<List<KrakenTrade>>());
+                    ParseTradeMessage(symbol, jToken[1].ToObject<List<KrakenTrade>>(JsonSerializer));
                 }
             }
         }
@@ -276,13 +276,13 @@ namespace QuantConnect.Brokerages.Kraken
 
                     foreach (var entry in book["as"])
                     {
-                        var bidAsk = entry.ToObject<KrakenBidAsk>();
+                        var bidAsk = entry.ToObject<KrakenBidAsk>(JsonSerializer);
                         orderBook.UpdateAskRow(bidAsk.Price, bidAsk.Volume);
                     }
 
                     foreach (var entry in book["bs"])
                     {
-                        var bidAsk = entry.ToObject<KrakenBidAsk>();
+                        var bidAsk = entry.ToObject<KrakenBidAsk>(JsonSerializer);
                         orderBook.UpdateBidRow(bidAsk.Price, bidAsk.Volume);
                     }
 
@@ -315,7 +315,7 @@ namespace QuantConnect.Brokerages.Kraken
                     {
                         foreach (var rawAsk in book["a"])
                         {
-                            var ask = rawAsk.ToObject<KrakenBidAsk>();
+                            var ask = rawAsk.ToObject<KrakenBidAsk>(JsonSerializer);
                             if (ask.Volume == 0)
                             {
                                 orderBook.RemoveAskRow(ask.Price);
@@ -331,7 +331,7 @@ namespace QuantConnect.Brokerages.Kraken
                     {
                         foreach (var rawBid in book["b"])
                         {
-                            var bid = rawBid.ToObject<KrakenBidAsk>();
+                            var bid = rawBid.ToObject<KrakenBidAsk>(JsonSerializer);
                             if (bid.Volume == 0)
                             {
                                 orderBook.RemoveBidRow(bid.Price);

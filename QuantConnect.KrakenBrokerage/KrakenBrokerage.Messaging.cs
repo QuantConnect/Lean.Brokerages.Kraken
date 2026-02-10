@@ -17,7 +17,9 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using QuantConnect.Brokerages.Kraken.Converters;
 using QuantConnect.Brokerages.Kraken.Models;
 using QuantConnect.Logging;
 using QuantConnect.Orders;
@@ -32,7 +34,15 @@ namespace QuantConnect.Brokerages.Kraken
     public partial class KrakenBrokerage
     {
 
-        private readonly ConcurrentDictionary<int, bool> _closedOrderEventSend = new ConcurrentDictionary<int, bool>();
+        private static readonly JsonSerializerSettings Settings = new()
+        {
+            Converters = new List<JsonConverter>() { new DecimalConverter() }
+        };
+
+        private static JsonSerializer JsonSerializer => JsonSerializer.CreateDefault(Settings);
+
+        private readonly ConcurrentDictionary<int, bool> _closedOrderEventSend = new();
+
         /// <summary>
         /// Private message parser
         /// </summary>

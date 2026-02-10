@@ -561,15 +561,23 @@ namespace QuantConnect.Brokerages.Kraken
             var url = $"/0/public/OHLC?pair={marketSymbol}&interval={resolution}";
             var start = (long) Time.DateTimeToUnixTimeStamp(request.StartTimeUtc);
             var end = (long) Time.DateTimeToUnixTimeStamp(request.EndTimeUtc);
-            var resolutionInMs = (long) request.Resolution.ToTimeSpan().TotalSeconds;
+            var resolutionInSeconds = (long) request.Resolution.ToTimeSpan().TotalSeconds;
 
-            while (end - start >= resolutionInMs)
+            while (end - start >= resolutionInSeconds)
             {
                 var timeframe = $"&since={start}";
 
                 var token = MakeRequest(url + timeframe, "GetOhlcBars");
 
-                var candlesList = token["result"][marketSymbol].ToObject<List<KrakenCandle>>();
+                var marketData = token["result"]!;
+                var lastCandle = marketData["last"]!.ToObject<long>();
+                var candlesList = marketData[marketSymbol]!.ToObject<List<KrakenCandle>>(JsonSerializer);
+                if (lastCandle == 0 && candlesList.Count == 1 && candlesList.ElementAt(0).Time == 0)
+                {
+                    // edge case if no data have been returned
+                    // example https://api.kraken.com/0/public/OHLC?pair=ETHWUSD
+                    break;
+                }
 
                 if (candlesList.Count > 0)
                 {
@@ -577,28 +585,28 @@ namespace QuantConnect.Brokerages.Kraken
                     if (Log.DebuggingEnabled)
                     {
                         var windowStartTime = Time.UnixTimeStampToDateTime(candlesList[0].Time);
-                        var windowEndTime = Time.UnixTimeStampToDateTime(lastValue.Time + resolutionInMs);
+                        var windowEndTime = Time.UnixTimeStampToDateTime(lastValue.Time + resolutionInSeconds);
                         Log.Debug($"KrakenBrokerage.GetOhlcHistory(): Received [{marketSymbol}] data for time period from {windowStartTime.ToStringInvariant()} to {windowEndTime.ToStringInvariant()}..");
                     }
 
-                    start = (long) lastValue.Time + resolutionInMs;
+                    start = lastValue.Time + resolutionInSeconds;
 
-                    for (var i = 0; i < candlesList.Count; i++)
+                    foreach (var candle in candlesList)
                     {
-                        if (candlesList[i].Time > end) // no "to" param in Kraken and it returns just 1000 candles since start timestamp
+                        if (candle.Time > end) // no "to" param in Kraken and it returns just 1000 candles since start timestamp
                         {
                             yield break;
                         }
                         yield return new TradeBar()
                         {
-                            Time = Time.UnixTimeStampToDateTime(candlesList[i].Time),
+                            Time = Time.UnixTimeStampToDateTime(candle.Time),
                             Symbol = request.Symbol,
-                            Low = candlesList[i].Low,
-                            High = candlesList[i].High,
-                            Open = candlesList[i].Open,
-                            Close = candlesList[i].Close,
-                            Volume = candlesList[i].Volume,
-                            Value = candlesList[i].Close,
+                            Low = candle.Low,
+                            High = candle.High,
+                            Open = candle.Open,
+                            Close = candle.Close,
+                            Volume = candle.Volume,
+                            Value = candle.Close,
                             DataType = MarketDataType.TradeBar,
                             Period = period
                         };
@@ -630,7 +638,7 @@ namespace QuantConnect.Brokerages.Kraken
                 var timeframe = $"&since={start}";
 
                 var token =  MakeRequest(url + timeframe, "GetTradeBars");
-                var tradesList = token["result"][marketSymbol].ToObject<List<KrakenTrade>>();
+                var tradesList = token["result"][marketSymbol].ToObject<List<KrakenTrade>>(JsonSerializer);
 
                 if (tradesList.Count > 0)
                 {
