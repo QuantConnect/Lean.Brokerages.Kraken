@@ -137,7 +137,6 @@ namespace QuantConnect.Brokerages.Kraken
             if (reqId.HasValue && CachedOrderIDs.TryRemove(reqId.Value, out var originalOrder))
             {
                 originalOrder.BrokerId.Add(txId);
-                _closedOrderEventSend.TryAdd(originalOrder.Id, false);
             }
 
             var cloneOrder = _orderProvider.GetOrdersByBrokerageId(txId)?.SingleOrDefault();
