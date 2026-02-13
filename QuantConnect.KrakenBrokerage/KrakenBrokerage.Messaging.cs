@@ -42,6 +42,8 @@ namespace QuantConnect.Brokerages.Kraken
         private static JsonSerializer JsonSerializer => JsonSerializer.CreateDefault(Settings);
 
         private readonly ConcurrentDictionary<int, bool> _closedOrderEventSend = new();
+        private readonly ConcurrentDictionary<string, int> _clientOrderIdToRequestIdMap = new();
+        private readonly ConcurrentDictionary<int, string> _requestIdToClientOrderMap = new();
 
         /// <summary>
         /// Private message parser
@@ -137,6 +139,10 @@ namespace QuantConnect.Brokerages.Kraken
             if (reqId.HasValue && CachedOrderIDs.TryRemove(reqId.Value, out var originalOrder))
             {
                 originalOrder.BrokerId.Add(txId);
+
+                // clean cache, eventually
+                _requestIdToClientOrderMap.TryRemove(reqId.Value, out string clientId);
+                _clientOrderIdToRequestIdMap.TryRemove(clientId, out _);
             }
 
             var cloneOrder = _orderProvider.GetOrdersByBrokerageId(txId)?.SingleOrDefault();
@@ -156,12 +162,21 @@ namespace QuantConnect.Brokerages.Kraken
                 {
                     var data = trade.First as JProperty;
                     var brokerId = data.Name;
-                    var reqId = data.Value["reqid"]?.ToObject<int>();
+                    Log.Trace($"{nameof(EmitOrderEvent)}:{data}");
 
-                    var order = FindOrderByBrokerageIds(brokerId, reqId);
+                    // `reqid` is not available in the Open Order events,
+                    int? requestId = null;
+                    var clientOrderId = data.Value["cl_ord_id"]?.ToObject<string>();
+                    if (!string.IsNullOrEmpty(clientOrderId)
+                        && _clientOrderIdToRequestIdMap.TryRemove(clientOrderId, out var reqId))
+                    {
+                        requestId = reqId;
+                    }
+
+                    var order = FindOrderByBrokerageIds(brokerId, requestId);
                     if (order == null)
                     {
-                        Log.Error($"EmitOrderEvent(): order not found: BrokerId: {brokerId}, Request Id: {reqId}", true);
+                        Log.Error($"EmitOrderEvent(): order not found: BrokerId: {brokerId}, Client Order Id: {clientOrderId}", true);
                         continue;
                     }
 
@@ -316,7 +331,8 @@ namespace QuantConnect.Brokerages.Kraken
                 {"volume", order.AbsoluteQuantity.ToStringInvariant()},
                 {"type", order.Direction == OrderDirection.Buy ? "buy" : "sell"},
                 {"token", WebsocketToken},
-                {"reqid", requestId }
+                {"reqid", requestId },
+                {"cl_ord_id", GenerateClientOrderId()}
             };
 
             if (order is MarketOrder)
