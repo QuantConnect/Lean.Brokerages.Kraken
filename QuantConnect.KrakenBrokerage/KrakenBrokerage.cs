@@ -574,22 +574,22 @@ namespace QuantConnect.Brokerages.Kraken
 
                     start = lastValue.Time + resolutionInSeconds;
 
-                    foreach (var candle in candlesList)
+                    for (var i = 0; i < candlesList.Count; i++)
                     {
-                        if (candle.Time > end) // no "to" param in Kraken and it returns just 1000 candles since start timestamp
+                        if (candlesList[i].Time > end) // no "to" param in Kraken and it returns just 1000 candles since start timestamp
                         {
                             yield break;
                         }
                         yield return new TradeBar()
                         {
-                            Time = Time.UnixTimeStampToDateTime(candle.Time),
+                            Time = Time.UnixTimeStampToDateTime(candlesList[i].Time),
                             Symbol = request.Symbol,
-                            Low = candle.Low,
-                            High = candle.High,
-                            Open = candle.Open,
-                            Close = candle.Close,
-                            Volume = candle.Volume,
-                            Value = candle.Close,
+                            Low = candlesList[i].Low,
+                            High = candlesList[i].High,
+                            Open = candlesList[i].Open,
+                            Close = candlesList[i].Close,
+                            Volume = candlesList[i].Volume,
+                            Value = candlesList[i].Close,
                             DataType = MarketDataType.TradeBar,
                             Period = period
                         };
