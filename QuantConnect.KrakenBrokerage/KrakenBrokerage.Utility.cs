@@ -147,5 +147,10 @@ namespace QuantConnect.Brokerages.Kraken
             "&",
             args.Where(x => x.Value != null).Select(x => x.Key + "=" + x.Value)
         );
+
+        private string GenerateClientOrderId()
+        {
+            return Guid.CreateVersion7().ToString();
+        }
     }
 }

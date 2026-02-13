@@ -442,6 +442,7 @@ namespace QuantConnect.Brokerages.Kraken
                 job.BrokerageData["kraken-verification-tier"],
                 orderDepth,
                 null,
+                null,
                 aggregator,
                 job);
         }
