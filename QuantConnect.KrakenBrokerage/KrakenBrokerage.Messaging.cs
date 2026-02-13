@@ -255,7 +255,7 @@ namespace QuantConnect.Brokerages.Kraken
                             orderFee = new OrderFee(new CashAmount(orderData.Fee, feeCurrency));
 
                             status = GetOrderStatus(orderData.Status);
-                            updTime = Time.UnixTimeStampToDateTime(orderData.LastUpdated);
+                            updTime = orderData.LastUpdated.HasValue ? Time.UnixTimeStampToDateTime(orderData.LastUpdated.Value) : DateTime.UtcNow;;
 
                             direction = order.Direction;
                             fillPrice = orderData.Avg_Price;

@@ -5,7 +5,7 @@ namespace QuantConnect.Brokerages.Kraken.Models
         /// <summary>
         /// Last update timestamp
         /// </summary>
-        public decimal LastUpdated { get; set; }
+        public decimal? LastUpdated { get; set; }
 
         /// <summary>
         /// Status of order
