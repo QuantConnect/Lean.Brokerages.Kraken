@@ -79,7 +79,11 @@ namespace QuantConnect.Brokerages.Kraken
                         OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Information, 200, $"KrakenWS system status: {token["status"]}"));
                         return;
                     }
-                    Log.Trace($"{nameof(KrakenBrokerage)}.{nameof(OnMessage)}.JSON: {data.Message}");
+
+                    if (Log.DebuggingEnabled)
+                    {
+                        Log.Trace($"{nameof(KrakenBrokerage)}.{nameof(OnMessage)}.JSON: {data.Message}");
+                    }
 
                     if (response.Event == "addOrderStatus")
                     {
@@ -162,7 +166,10 @@ namespace QuantConnect.Brokerages.Kraken
                 {
                     var data = trade.First as JProperty;
                     var brokerId = data.Name;
-                    Log.Trace($"{nameof(EmitOrderEvent)}:{data}");
+                    if (Log.DebuggingEnabled)
+                    {
+                        Log.Trace($"{nameof(KrakenBrokerage)}.{nameof(EmitOrderEvent)}.JSON: {data}");
+                    }
 
                     // `reqid` is not available in the Open Order events,
                     int? requestId = null;
