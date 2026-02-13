@@ -19,9 +19,6 @@ namespace QuantConnect.Brokerages.Kraken.Models
 {
     public class KrakenOpenOrder
     {
-        [JsonProperty("cl_ord_id")]
-        public string ClientOrderId { get; set; }
-
         /// <summary>
         /// User reference id
         /// </summary>

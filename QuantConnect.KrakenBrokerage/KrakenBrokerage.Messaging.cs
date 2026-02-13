@@ -41,7 +41,6 @@ namespace QuantConnect.Brokerages.Kraken
 
         private static JsonSerializer JsonSerializer => JsonSerializer.CreateDefault(Settings);
 
-        private readonly ConcurrentSet<int> _pendingOrders = new();
         private readonly ConcurrentDictionary<int, bool> _closedOrderEventSend = new();
 
         /// <summary>
@@ -83,24 +82,13 @@ namespace QuantConnect.Brokerages.Kraken
                     if (response.Event == "addOrderStatus")
                     {
                         var addOrder = token.ToObject<KrakenWsAddOrderResponse>();
-                        var order = FindOrderByBrokerageIds(addOrder.Txid, addOrder.ClientOrderId, addOrder.ReqId.ToString());
+                        var order = FindOrderByBrokerageIds(addOrder.Txid, addOrder.ReqId);
                         if (response.Status != "error")
                         {
-                            if (order != null)
-                            {
-                                var pendingRemoved = _pendingOrders.Remove(order.Id);
-                                if (pendingRemoved)
-                                {
-                                    order.BrokerId.Clear();
-                                    order.BrokerId.Add(addOrder.Txid);
-
-                                    _closedOrderEventSend.TryAdd(order.Id, false);
-                                }
-                            }
-                            else
+                            if (order == null)
                             {
                                 // this shouldn't happen but just in case
-                                OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, -1, $"Unable to find order for client id: {addOrder.ClientOrderId}."));
+                                OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, -1, $"Unable to find order for request id: {addOrder.ReqId}."));
                             }
                         }
                         else
@@ -108,13 +96,6 @@ namespace QuantConnect.Brokerages.Kraken
                             var message = $"Error {token["event"]} event. Message: {token["errorMessage"]}";
                             if(order != null)
                             {
-                                var pendingRemoved = _pendingOrders.Remove(order.Id);
-                                if (pendingRemoved)
-                                {
-                                    order.BrokerId.Clear();
-                                    order.BrokerId.Add(addOrder.Txid);
-                                }
-
                                 message += $". Order: {order}";
                             }
                             // error
@@ -151,20 +132,18 @@ namespace QuantConnect.Brokerages.Kraken
             }
         }
 
-        private Order FindOrderByBrokerageIds(params string[] brokerageIds)
+        private Order FindOrderByBrokerageIds(string txId, int? reqId)
         {
-            foreach (var id in brokerageIds)
+            if (reqId.HasValue && CachedOrderIDs.TryRemove(reqId.Value, out var originalOrder))
             {
-                if (string.IsNullOrEmpty(id))
-                {
-                    continue;
-                }
+                originalOrder.BrokerId.Add(txId);
+                _closedOrderEventSend.TryAdd(originalOrder.Id, false);
+            }
 
-                var order = _orderProvider.GetOrdersByBrokerageId(id)?.SingleOrDefault();
-                if (order != null)
-                {
-                    return order;
-                }
+            var cloneOrder = _orderProvider.GetOrdersByBrokerageId(txId)?.SingleOrDefault();
+            if (cloneOrder != null)
+            {
+                return cloneOrder;
             }
 
             return null;
@@ -177,24 +156,14 @@ namespace QuantConnect.Brokerages.Kraken
                 try
                 {
                     var data = trade.First as JProperty;
-                    Log.Trace($"{nameof(EmitOrderEvent)}:{data}");
                     var brokerId = data.Name;
-                    var clientId = data.Value["cl_ord_id"]?.ToObject<string>();
+                    var reqId = data.Value["reqid"]?.ToObject<int>();
 
-                    var order = FindOrderByBrokerageIds(brokerId, clientId);
+                    var order = FindOrderByBrokerageIds(brokerId, reqId);
                     if (order == null)
                     {
-                        Log.Error($"EmitOrderEvent(): order not found: BrokerId: {brokerId}, Client OrderId: {clientId}", true);
+                        Log.Error($"EmitOrderEvent(): order not found: BrokerId: {brokerId}, Request Id: {reqId}", true);
                         continue;
-                    }
-
-                    var pendingRemoved = _pendingOrders.Remove(order.Id);
-                    if (pendingRemoved)
-                    {
-                        order.BrokerId.Clear();
-                        order.BrokerId.Add(brokerId);
-
-                        _closedOrderEventSend.TryAdd(order.Id, false);
                     }
 
                     var orderId = order.Id;
@@ -337,7 +306,7 @@ namespace QuantConnect.Brokerages.Kraken
             }
         }
 
-        private JsonObject CreateKrakenOrder(Order order)
+        private JsonObject CreateKrakenOrder(Order order, int requestId)
         {
             var symbol = _symbolMapper.GetWebsocketSymbol(order.Symbol);
 
@@ -348,10 +317,8 @@ namespace QuantConnect.Brokerages.Kraken
                 {"volume", order.AbsoluteQuantity.ToStringInvariant()},
                 {"type", order.Direction == OrderDirection.Buy ? "buy" : "sell"},
                 {"token", WebsocketToken},
+                {"reqid", requestId }
             };
-
-            parameters.Add("reqid", GenerateRequestId());
-            parameters.Add("cl_ord_id", GenerateClientOrderId());
 
             if (order is MarketOrder)
             {

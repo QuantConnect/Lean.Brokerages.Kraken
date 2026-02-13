@@ -362,19 +362,15 @@ namespace QuantConnect.Brokerages.Kraken
         /// <returns>Order placed or not</returns>
         public override bool PlaceOrder(Order order)
         {
-            var parameters = CreateKrakenOrder(order);
-            if (parameters.TryGetValue("reqid", out var reqid))
-            {
-                order.BrokerId.Add(reqid.ToString());
-            }
-            if (parameters.TryGetValue("cl_ord_id", out var value))
-            {
-                order.BrokerId.Add((string)value);
-            }
+            int requestId = GenerateRequestId();
+            var parameters = CreateKrakenOrder(order, requestId);
 
-            _pendingOrders.Add(order.Id);
+            CachedOrderIDs[requestId] = order;
             var json = JsonConvert.SerializeObject(parameters);
-            Log.Trace($"{nameof(KrakenBrokerage)}.{nameof(PlaceOrder)}.JSON: {json}");
+            if (Log.DebuggingEnabled)
+            {
+                Log.Trace($"{nameof(KrakenBrokerage)}.{nameof(PlaceOrder)}.JSON: {json}");
+            }
 
             _rateLimiter.OrderRateLimitCheck(order.Symbol);
             WebSocket.Send(json);

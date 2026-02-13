@@ -20,12 +20,6 @@ namespace QuantConnect.Brokerages.Kraken.Models
     public class KrakenWsAddOrderResponse : KrakenBaseWsResponse
     {
         /// <summary>
-        /// An optional, alphanumeric identifier specified by the client in the add_order parameters.
-        /// </summary>
-        [JsonProperty("cl_ord_id")]
-        public string ClientOrderId { get; set; }
-
-        /// <summary>
         /// Optional client originated request identifier sent as acknowledgment in the response.
         /// </summary>
         [JsonProperty("reqid")]
