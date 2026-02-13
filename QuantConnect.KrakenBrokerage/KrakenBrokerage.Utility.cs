@@ -152,5 +152,7 @@ namespace QuantConnect.Brokerages.Kraken
         {
             return Guid.CreateVersion7().ToString();
         }
+
+        private int GenerateRequestId() => Random.Shared.Next();
     }
 }

@@ -363,6 +363,10 @@ namespace QuantConnect.Brokerages.Kraken
         public override bool PlaceOrder(Order order)
         {
             var parameters = CreateKrakenOrder(order);
+            if (parameters.TryGetValue("reqid", out var reqid))
+            {
+                order.BrokerId.Add(reqid.ToString());
+            }
             if (parameters.TryGetValue("cl_ord_id", out var value))
             {
                 order.BrokerId.Add((string)value);

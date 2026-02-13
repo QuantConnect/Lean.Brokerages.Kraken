@@ -83,7 +83,7 @@ namespace QuantConnect.Brokerages.Kraken
                     if (response.Event == "addOrderStatus")
                     {
                         var addOrder = token.ToObject<KrakenWsAddOrderResponse>();
-                        var order = FindOrderByBrokerageIds(addOrder.Txid, addOrder.ClientOrderId);
+                        var order = FindOrderByBrokerageIds(addOrder.Txid, addOrder.ClientOrderId, addOrder.ReqId.ToString());
                         if (response.Status != "error")
                         {
                             if (order != null)
@@ -108,6 +108,13 @@ namespace QuantConnect.Brokerages.Kraken
                             var message = $"Error {token["event"]} event. Message: {token["errorMessage"]}";
                             if(order != null)
                             {
+                                var pendingRemoved = _pendingOrders.Remove(order.Id);
+                                if (pendingRemoved)
+                                {
+                                    order.BrokerId.Clear();
+                                    order.BrokerId.Add(addOrder.Txid);
+                                }
+
                                 message += $". Order: {order}";
                             }
                             // error
@@ -343,6 +350,7 @@ namespace QuantConnect.Brokerages.Kraken
                 {"token", WebsocketToken},
             };
 
+            parameters.Add("reqid", GenerateRequestId());
             parameters.Add("cl_ord_id", GenerateClientOrderId());
 
             if (order is MarketOrder)
