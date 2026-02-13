@@ -40,13 +40,13 @@ namespace QuantConnect.Brokerages.Kraken
         private readonly object RestLocker = new();
         private readonly object OrderLocker = new();
         private readonly object CancelLocker = new();
-        
+
         // By default - Starter verification tier limits
         private readonly Dictionary<KrakenRateLimitType, decimal> _rateLimitsDictionary = new ()
         {
             {KrakenRateLimitType.Common, 15},
-            {KrakenRateLimitType.Orders, 60},
-            {KrakenRateLimitType.Cancel, 60}
+            {KrakenRateLimitType.Orders, 2},
+            {KrakenRateLimitType.Cancel, 2}
         };
 
         private readonly Dictionary<KrakenRateLimitType, decimal> _rateLimitsDecayDictionary = new ()
@@ -78,13 +78,13 @@ namespace QuantConnect.Brokerages.Kraken
             _rateLimitsCancelPerSymbolDictionary = new Dictionary<string, decimal>();
 
             Enum.TryParse(verificationTier, true, out KrakenVerificationTier tier);
-            
+
             switch (tier)
             {
                 case KrakenVerificationTier.Starter:
                     _rateLimitsDictionary[KrakenRateLimitType.Common] = 15;
-                    _rateLimitsDictionary[KrakenRateLimitType.Orders] = 60;
-                    _rateLimitsDictionary[KrakenRateLimitType.Cancel] = 60;
+                    _rateLimitsDictionary[KrakenRateLimitType.Orders] = 2;
+                    _rateLimitsDictionary[KrakenRateLimitType.Cancel] = 2;
                     _rateLimitsDecayDictionary[KrakenRateLimitType.Common] = 0.33m;
                     _rateLimitsDecayDictionary[KrakenRateLimitType.Cancel] = 1m;
                     break;
@@ -105,7 +105,7 @@ namespace QuantConnect.Brokerages.Kraken
                 default:
                     throw new ArgumentException($"Unexpected rate limit tier {tier}");
             }
-            
+
             _1sRateLimitTimer.Elapsed += DecaySpotRateLimits;
             _1sRateLimitTimer.Start();
         }
@@ -153,7 +153,7 @@ namespace QuantConnect.Brokerages.Kraken
                 throw new BrokerageException("Order placing limit is exceeded. Cancel open orders and then place new ones.");
             }
         }
-        
+
         /// <summary>
         /// Kraken order rate decay
         /// </summary>
@@ -175,7 +175,7 @@ namespace QuantConnect.Brokerages.Kraken
                 }
             }
         }
-        
+
         /// <summary>
         /// Kraken Cancel Order Rate limit check
         /// </summary>
@@ -185,14 +185,14 @@ namespace QuantConnect.Brokerages.Kraken
         {
             var weight = GetRateLimitWeightCancelOrder(time);
             decimal currentCancelOrderRate;
-            
+
             lock (CancelLocker)
             {
                 _rateLimitsCancelPerSymbolDictionary.TryGetValue(symbol, out currentCancelOrderRate);
                 currentCancelOrderRate += weight;
                 _rateLimitsCancelPerSymbolDictionary[symbol] = currentCancelOrderRate;
             }
-            
+
             if (currentCancelOrderRate >= _rateLimitsDictionary[KrakenRateLimitType.Cancel])
             {
                 Message?.Invoke(this, new BrokerageMessageEvent(BrokerageMessageType.Warning, "CancelRateLimit",
@@ -246,7 +246,7 @@ namespace QuantConnect.Brokerages.Kraken
 
             return 0;
         }
-        
+
         private void DecaySpotRateLimits(object o, ElapsedEventArgs agrs)
         {
             try
