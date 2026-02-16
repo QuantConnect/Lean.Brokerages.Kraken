@@ -365,12 +365,8 @@ namespace QuantConnect.Brokerages.Kraken
             int requestId = GenerateRequestId();
             var parameters = CreateKrakenOrder(order, requestId);
 
-            if (parameters.TryGetValue("cl_ord_id", out var value))
-            {
-                _clientOrderIdToRequestIdMap[(string)value] = requestId;
-                _requestIdToClientOrderMap[requestId] = (string)value;
-            }
             CachedOrderIDs[requestId] = order;
+
             var json = JsonConvert.SerializeObject(parameters);
             if (Log.DebuggingEnabled)
             {

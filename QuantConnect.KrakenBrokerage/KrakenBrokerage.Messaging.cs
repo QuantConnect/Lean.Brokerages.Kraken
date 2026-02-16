@@ -19,7 +19,6 @@ using System.Collections.Generic;
 using System.Linq;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using QuantConnect.Brokerages.Kraken.Converters;
 using QuantConnect.Brokerages.Kraken.Models;
 using QuantConnect.Logging;
 using QuantConnect.Orders;
@@ -36,14 +35,12 @@ namespace QuantConnect.Brokerages.Kraken
 
         private static readonly JsonSerializerSettings Settings = new()
         {
-            Converters = new List<JsonConverter>() { new DecimalConverter() }
+            Converters = new List<JsonConverter>() { new DecimalJsonConverter() }
         };
 
         private static JsonSerializer JsonSerializer => JsonSerializer.CreateDefault(Settings);
 
         private readonly ConcurrentDictionary<int, bool> _closedOrderEventSend = new();
-        private readonly ConcurrentDictionary<string, int> _clientOrderIdToRequestIdMap = new();
-        private readonly ConcurrentDictionary<int, string> _requestIdToClientOrderMap = new();
 
         /// <summary>
         /// Private message parser
@@ -143,10 +140,6 @@ namespace QuantConnect.Brokerages.Kraken
             if (reqId.HasValue && CachedOrderIDs.TryRemove(reqId.Value, out var originalOrder))
             {
                 originalOrder.BrokerId.Add(txId);
-
-                // clean cache, eventually
-                _requestIdToClientOrderMap.TryRemove(reqId.Value, out string clientId);
-                _clientOrderIdToRequestIdMap.TryRemove(clientId, out _);
             }
 
             var cloneOrder = _orderProvider.GetOrdersByBrokerageId(txId)?.SingleOrDefault();
@@ -174,8 +167,7 @@ namespace QuantConnect.Brokerages.Kraken
                     // `reqid` is not available in the Open Order events,
                     int? requestId = null;
                     var clientOrderId = data.Value["cl_ord_id"]?.ToObject<string>();
-                    if (!string.IsNullOrEmpty(clientOrderId)
-                        && _clientOrderIdToRequestIdMap.TryRemove(clientOrderId, out var reqId))
+                    if (!string.IsNullOrEmpty(clientOrderId) && int.TryParse(clientOrderId, out var reqId))
                     {
                         requestId = reqId;
                     }
@@ -339,7 +331,7 @@ namespace QuantConnect.Brokerages.Kraken
                 {"type", order.Direction == OrderDirection.Buy ? "buy" : "sell"},
                 {"token", WebsocketToken},
                 {"reqid", requestId },
-                {"cl_ord_id", GenerateClientOrderId()}
+                {"cl_ord_id", requestId.ToStringInvariant()}
             };
 
             if (order is MarketOrder)

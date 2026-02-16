@@ -16,8 +16,8 @@
 using System.Linq;
 using Newtonsoft.Json;
 using NUnit.Framework;
-using QuantConnect.Brokerages.Kraken.Converters;
 using QuantConnect.Brokerages.Kraken.Models;
+using QuantConnect.Util;
 
 namespace QuantConnect.Tests.Brokerages.Kraken.Converters;
 
@@ -25,7 +25,7 @@ public class KrakenBidAskConverterTests
 {
     private static readonly JsonSerializerSettings Settings = new()
     {
-        Converters = [new DecimalConverter()]
+        Converters = [new DecimalJsonConverter()]
     };
 
     [TestCase(new object[] { "68510.90000", "0.61335740", "1770727721.057800" },68510.90, 0.61335740, 1770727721.057800)]
