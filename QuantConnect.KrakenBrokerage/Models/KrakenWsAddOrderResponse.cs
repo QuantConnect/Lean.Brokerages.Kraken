@@ -23,7 +23,7 @@ namespace QuantConnect.Brokerages.Kraken.Models
         /// Optional client originated request identifier sent as acknowledgment in the response.
         /// </summary>
         [JsonProperty("reqid")]
-        public int ReqId { get; set; }
+        public int? ReqId { get; set; }
 
         /// <summary>
         /// order ID
