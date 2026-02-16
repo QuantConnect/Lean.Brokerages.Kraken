@@ -13,15 +13,18 @@
  * limitations under the License.
 */
 
+using Newtonsoft.Json;
+
 namespace QuantConnect.Brokerages.Kraken.Models
 {
     public class KrakenWsAddOrderResponse : KrakenBaseWsResponse
     {
         /// <summary>
-        /// client originated requestID sent as acknowledgment in the message response
+        /// Optional client originated request identifier sent as acknowledgment in the response.
         /// </summary>
-        public int Reqid { get; set; }
-        
+        [JsonProperty("reqid")]
+        public int? ReqId { get; set; }
+
         /// <summary>
         /// order ID
         /// </summary>

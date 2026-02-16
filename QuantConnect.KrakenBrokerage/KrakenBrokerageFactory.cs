@@ -38,11 +38,11 @@ namespace QuantConnect.Brokerages.Kraken
         }
 
         /// <summary>
-        /// Dispose 
+        /// Dispose
         /// </summary>
         public override void Dispose()
         {
-            
+
         }
 
         /// <summary>
@@ -58,7 +58,7 @@ namespace QuantConnect.Brokerages.Kraken
             // load holdings if available
             { "live-holdings", Config.Get("live-holdings")},
         };
-        
+
         /// <summary>
         /// The brokerage model
         /// </summary>
@@ -94,6 +94,7 @@ namespace QuantConnect.Brokerages.Kraken
                 job.BrokerageData["kraken-verification-tier"],
                 orderDepth.ToInt32(),
                 algorithm,
+                algorithm.Transactions,
                 Composer.Instance.GetExportedValueByTypeName<IDataAggregator>(Config.Get("data-aggregator", "QuantConnect.Lean.Engine.DataFeeds.AggregationManager"), forceTypeNameOnExisting: false),
                 job);
             Composer.Instance.AddPart<IDataQueueHandler>(brokerage);

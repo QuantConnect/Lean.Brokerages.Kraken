@@ -11,7 +11,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
-*/
+ */
 
 using System;
 using Newtonsoft.Json;
@@ -46,19 +46,20 @@ namespace QuantConnect.Brokerages.Kraken.Converters
         /// <param name="existingValue">The existing value of object being read.</param>
         /// <param name="serializer">The calling serializer.</param>
         /// <returns>The object value.</returns>
-        public override object ReadJson(JsonReader reader, Type objectType, object existingValue, JsonSerializer serializer)
+        public override object ReadJson(JsonReader reader, Type objectType, object existingValue,
+            JsonSerializer serializer)
         {
             reader.FloatParseHandling = FloatParseHandling.Decimal;
             var array = JArray.Load(reader);
 
             return new KrakenTrade
             {
-                Price = array[0].Type == JTokenType.Null ? 0 : Convert.ToDecimal((string) array[0]),
-                Volume = array[1].Type == JTokenType.Null ? 0 : Convert.ToDecimal((string) array[1]),
-                Time = array[2].Type == JTokenType.Null ? 0 : Convert.ToDecimal((string) array[2]),
-                Side = array[3].Type == JTokenType.Null ? "" : (string) array[3],
-                OrderType = array[4].Type == JTokenType.Null ? "" : (string) array[4],
-                Misc = array[5].Type == JTokenType.Null ? "" : (string) array[5],
+                Price = array[0].Type == JTokenType.Null ? 0 : array[0].ToObject<decimal>(),
+                Volume = array[1].Type == JTokenType.Null ? 0 : array[1].ToObject<decimal>(),
+                Time = array[2].Type == JTokenType.Null ? 0 : array[2].ToObject<decimal>(),
+                Side = array[3].Type == JTokenType.Null ? "" : (string)array[3],
+                OrderType = array[4].Type == JTokenType.Null ? "" : (string)array[4],
+                Misc = array[5].Type == JTokenType.Null ? "" : (string)array[5],
             };
         }
 

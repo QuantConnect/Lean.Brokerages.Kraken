@@ -11,7 +11,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
-*/
+ */
 
 using System;
 using Newtonsoft.Json;
@@ -30,7 +30,7 @@ namespace QuantConnect.Brokerages.Kraken.Converters
         /// </summary>
         /// <value><c>true</c> if this <see cref="T:Newtonsoft.Json.JsonConverter" /> can write JSON; otherwise, <c>false</c>.</value>
         public override bool CanWrite => false;
-        
+
         /// <summary>Writes the JSON representation of the object.</summary>
         /// <param name="writer">The <see cref="T:Newtonsoft.Json.JsonWriter" /> to write to.</param>
         /// <param name="value">The value.</param>
@@ -46,21 +46,22 @@ namespace QuantConnect.Brokerages.Kraken.Converters
         /// <param name="existingValue">The existing value of object being read.</param>
         /// <param name="serializer">The calling serializer.</param>
         /// <returns>The object value.</returns>
-        public override object ReadJson(JsonReader reader, Type objectType, object existingValue, JsonSerializer serializer)
+        public override object ReadJson(JsonReader reader, Type objectType, object existingValue,
+            JsonSerializer serializer)
         {
             reader.FloatParseHandling = FloatParseHandling.Decimal;
             var array = JArray.Load(reader);
 
             return new KrakenCandle
             {
-                Time = array[0].Type == JTokenType.Null ? 0 : Convert.ToDecimal((string) array[0]),
-                Low = array[3].Type == JTokenType.Null ? 0 : Convert.ToDecimal((string) array[3]),
-                High = array[2].Type == JTokenType.Null ? 0 : Convert.ToDecimal((string) array[2]),
-                Open = array[1].Type == JTokenType.Null ? 0 : Convert.ToDecimal((string) array[1]),
-                Close = array[4].Type == JTokenType.Null ? 0 : Convert.ToDecimal((string) array[4]),
-                Volume = array[6].Type == JTokenType.Null ? 0 : Convert.ToDecimal((string) array[6]),
-                Count = array[7].Type == JTokenType.Null ? 0 : (int) array[7],
-                VWap = array[5].Type == JTokenType.Null ? 0 : Convert.ToDecimal((string) array[5])
+                Time = array[0].Type == JTokenType.Null ? 0 : array[0].Value<long>(),
+                Open = array[1].Type == JTokenType.Null ? 0 : array[1].ToObject<decimal>(),
+                High = array[2].Type == JTokenType.Null ? 0 : array[2].ToObject<decimal>(),
+                Low = array[3].Type == JTokenType.Null ? 0 : array[3].ToObject<decimal>(),
+                Close = array[4].Type == JTokenType.Null ? 0 : array[4].ToObject<decimal>(),
+                VWap = array[5].Type == JTokenType.Null ? 0 : array[5].ToObject<decimal>(),
+                Volume = array[6].Type == JTokenType.Null ? 0 : array[6].ToObject<decimal>(),
+                Count = array[7].Type == JTokenType.Null ? 0 : array[7].Value<int>()
             };
         }
 

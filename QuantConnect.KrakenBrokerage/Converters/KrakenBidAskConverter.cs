@@ -11,7 +11,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
-*/
+ */
 
 using System;
 using Newtonsoft.Json;
@@ -53,9 +53,9 @@ namespace QuantConnect.Brokerages.Kraken.Converters
 
             var result = new KrakenBidAsk
             {
-                Price = array[0].Type == JTokenType.Null ? 0 : Convert.ToDecimal((string) array[0]),
-                Volume = array[1].Type == JTokenType.Null ? 0 : Convert.ToDecimal((string) array[1]),
-                Timestamp = array[2].Type == JTokenType.Null ? 0 : Convert.ToDecimal((string) array[2]),
+                Price = array[0].Type == JTokenType.Null ? 0 : array[0].ToObject<decimal>(),
+                Volume = array[1].Type == JTokenType.Null ? 0 : array[1].ToObject<decimal>(),
+                Timestamp = array[2].Type == JTokenType.Null ? 0 : array[2].ToObject<decimal>(),
             };
 
             if (array.Count > 3 && array[3].Type != JTokenType.Null)

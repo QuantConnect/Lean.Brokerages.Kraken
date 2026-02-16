@@ -47,6 +47,7 @@ namespace QuantConnect.Brokerages.Kraken
     public partial class KrakenBrokerage : BaseWebsocketsBrokerage, IDataQueueHandler
     {
         private IAlgorithm _algorithm;
+        private IOrderProvider _orderProvider;
         private ISecurityProvider _securityProvider;
         private IDataAggregator _aggregator;
         private readonly KrakenSymbolMapper _symbolMapper = new KrakenSymbolMapper();
@@ -82,27 +83,32 @@ namespace QuantConnect.Brokerages.Kraken
         /// <param name="verificationTier">Account verification tier</param>
         /// <param name="orderBookDepth">Desired depth of orderbook that will receive DataQueueHandler</param>
         /// <param name="algorithm"><see cref="IAlgorithm"/> instance</param>
+        /// <param name="orderProvider">The order provider instance</param>
         /// <param name="aggregator"><see cref="IDataAggregator"/> instance</param>
         /// <param name="job">Lean <see cref="LiveNodePacket"/></param>
-        public KrakenBrokerage(string apiKey, string apiSecret, string verificationTier, int orderBookDepth, IAlgorithm algorithm, IDataAggregator aggregator, LiveNodePacket job)
+        public KrakenBrokerage(string apiKey, string apiSecret, string verificationTier, int orderBookDepth, IAlgorithm algorithm, IOrderProvider orderProvider, IDataAggregator aggregator, LiveNodePacket job)
             : base("Kraken")
         {
-            Initialize(apiKey, apiSecret, verificationTier, orderBookDepth, algorithm, aggregator, job);
+            Initialize(apiKey, apiSecret, verificationTier, orderBookDepth, algorithm, orderProvider, aggregator, job);
         }
 
         /// <summary>
         /// Constructor for brokerage without configs
         /// </summary>
         /// <param name="algorithm"><see cref="IAlgorithm"/> instance</param>
+        /// /// <param name="orderProvider">The order provider instance</param>
         /// <param name="aggregator"><see cref="IDataAggregator"/> instance</param>
         /// <param name="job">Lean <see cref="LiveNodePacket"/></param>
-        public KrakenBrokerage(IAlgorithm algorithm, IDataAggregator aggregator, LiveNodePacket job)
+        public KrakenBrokerage(IAlgorithm algorithm, IOrderProvider orderProvider, IDataAggregator aggregator, LiveNodePacket job)
             :
             this(Config.Get("kraken-api-key"),
                 Config.Get("kraken-api-secret"),
                 Config.Get("kraken-verification-tier"),
                 Config.GetInt("kraken-orderbook-depth", 10),
-                algorithm, aggregator, job)
+                algorithm,
+                orderProvider,
+                aggregator,
+                job)
         {
         }
 
@@ -161,40 +167,25 @@ namespace QuantConnect.Brokerages.Kraken
                         break;
                     case "LIMIT":
                         var limPrice = krakenOrder.Descr.Price;
-                        order = new LimitOrder(symbol, quantity, limPrice, time, properties: properties)
-                        {
-                            BrokerId = {brokerId}
-                        };
+                        order = new LimitOrder(symbol, quantity, limPrice, time, properties: properties);
                         break;
                     case "STOP-LOSS":
                         var stopPrice = krakenOrder.Descr.Price;
-                        order = new StopMarketOrder(symbol, quantity, stopPrice, time, properties: properties)
-                        {
-                            BrokerId = {brokerId}
-                        };
+                        order = new StopMarketOrder(symbol, quantity, stopPrice, time, properties: properties);
                         break;
                     case "TAKE-PROFIT":
                         var tpPrice = krakenOrder.Descr.Price;
-                        order = new StopMarketOrder(symbol, quantity, tpPrice, time, properties: properties)
-                        {
-                            BrokerId = {brokerId}
-                        };
+                        order = new StopMarketOrder(symbol, quantity, tpPrice, time, properties: properties);
                         break;
                     case "STOP-LOSS-LIMIT":
                         var stpPrice = krakenOrder.Descr.Price;
                         var limitPrice = krakenOrder.Descr.Price2;
-                        order = new StopLimitOrder(symbol, quantity, stpPrice, limitPrice, time, properties: properties)
-                        {
-                            BrokerId = {brokerId}
-                        };
+                        order = new StopLimitOrder(symbol, quantity, stpPrice, limitPrice, time, properties: properties);
                         break;
                     case "TAKE-PROFIT-LIMIT":
                         var takePrice = krakenOrder.Descr.Price;
                         var lmtPrice = krakenOrder.Descr.Price2;
-                        order = new LimitIfTouchedOrder(symbol, quantity, takePrice, lmtPrice, time, properties: properties)
-                        {
-                            BrokerId = {brokerId}
-                        };
+                        order = new LimitIfTouchedOrder(symbol, quantity, takePrice, lmtPrice, time, properties: properties);
                         break;
                     default:
                         OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Error, -1,
@@ -203,15 +194,7 @@ namespace QuantConnect.Brokerages.Kraken
                 }
 
                 order.Status = GetOrderStatus(krakenOrder.Status);
-
-                if (order.Status.IsOpen())
-                {
-                    var cached = CachedOrderIDs.Where(c => c.Value.BrokerId.Contains(order.BrokerId.First())).ToList();
-                    if (cached.Any())
-                    {
-                        CachedOrderIDs[cached.First().Key] = order;
-                    }
-                }
+                order.BrokerId.Add(brokerId);
 
                 list.Add(order);
             }
@@ -379,15 +362,18 @@ namespace QuantConnect.Brokerages.Kraken
         /// <returns>Order placed or not</returns>
         public override bool PlaceOrder(Order order)
         {
-            SetWebsocketToken();
+            int requestId = GenerateRequestId();
+            var parameters = CreateKrakenOrder(order, requestId);
 
-            var parameters = CreateKrakenOrder(order);
+            CachedOrderIDs[requestId] = order;
 
             var json = JsonConvert.SerializeObject(parameters);
-            Log.Trace($"{nameof(KrakenBrokerage)}.{nameof(PlaceOrder)}.JSON: {json}");
+            if (Log.DebuggingEnabled)
+            {
+                Log.Trace($"{nameof(KrakenBrokerage)}.{nameof(PlaceOrder)}.JSON: {json}");
+            }
 
             _rateLimiter.OrderRateLimitCheck(order.Symbol);
-
             WebSocket.Send(json);
 
             return true;
@@ -410,16 +396,13 @@ namespace QuantConnect.Brokerages.Kraken
         /// <returns>True if the request was submitted for cancellation, false otherwise</returns>
         public override bool CancelOrder(Order order)
         {
-            Log.Trace("KrakenBrokerage.CancelOrder(): {0}", order);
-
             if (!order.BrokerId.Any())
             {
                 // we need the brokerage order id in order to perform a cancellation
-                Log.Trace("KrakenBrokerage.CancelOrder(): Unable to cancel order without BrokerId.");
+                OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, -1, $"{nameof(KrakenBrokerage)}.{nameof(CancelOrder)}(): Order {order.Id} has no BrokerId"));
                 return false;
             }
 
-            SetWebsocketToken();
             var json = JsonConvert.SerializeObject(new
             {
                 @event = "cancelOrder",
@@ -509,14 +492,18 @@ namespace QuantConnect.Brokerages.Kraken
         /// <param name="algorithm"><see cref="IAlgorithm"/> instance</param>
         /// <param name="aggregator"><see cref="IDataAggregator"/> instance</param>
         /// <param name="job">Lean <see cref="LiveNodePacket"/></param>
-        protected void Initialize(string apiKey, string apiSecret, string verificationTier, int orderBookDepth, IAlgorithm algorithm, IDataAggregator aggregator, LiveNodePacket job)
+        protected void Initialize(string apiKey, string apiSecret, string verificationTier, int orderBookDepth, IAlgorithm algorithm, IOrderProvider orderProvider, IDataAggregator aggregator, LiveNodePacket job)
         {
             if (IsInitialized)
             {
                 return;
             }
+
+            ValidateSubscription();
+
             base.Initialize(_wsAuthUrl, new KrakenWebSocketWrapper(null), new RestClient(_apiUrl), apiKey, apiSecret);
             _algorithm = algorithm;
+            _orderProvider = orderProvider;
             _job = job;
             _aggregator = aggregator;
             _securityProvider = algorithm?.Portfolio;
@@ -538,9 +525,11 @@ namespace QuantConnect.Brokerages.Kraken
                 TimeSpan.Zero,
                 _webSocketRateLimiter);
 
-            WebSocket.Open += (sender, args) => { SubscribeAuth(); };
-
-            ValidateSubscription();
+            if (algorithm != null)
+            {
+                SetWebsocketToken();
+                WebSocket.Open += (sender, args) => { SubscribeAuth(); };
+            }
         }
 
         /// <summary>
@@ -556,15 +545,23 @@ namespace QuantConnect.Brokerages.Kraken
             var url = $"/0/public/OHLC?pair={marketSymbol}&interval={resolution}";
             var start = (long) Time.DateTimeToUnixTimeStamp(request.StartTimeUtc);
             var end = (long) Time.DateTimeToUnixTimeStamp(request.EndTimeUtc);
-            var resolutionInMs = (long) request.Resolution.ToTimeSpan().TotalSeconds;
+            var resolutionInSeconds = (long) request.Resolution.ToTimeSpan().TotalSeconds;
 
-            while (end - start >= resolutionInMs)
+            while (end - start >= resolutionInSeconds)
             {
                 var timeframe = $"&since={start}";
 
                 var token = MakeRequest(url + timeframe, "GetOhlcBars");
 
-                var candlesList = token["result"][marketSymbol].ToObject<List<KrakenCandle>>();
+                var marketData = token["result"]!;
+                var lastCandle = marketData["last"]!.ToObject<long>();
+                var candlesList = marketData[marketSymbol]!.ToObject<List<KrakenCandle>>(JsonSerializer);
+                if (lastCandle == 0 && candlesList.Count == 1 && candlesList.ElementAt(0).Time == 0)
+                {
+                    // edge case if no data have been returned
+                    // example https://api.kraken.com/0/public/OHLC?pair=ETHWUSD
+                    break;
+                }
 
                 if (candlesList.Count > 0)
                 {
@@ -572,11 +569,11 @@ namespace QuantConnect.Brokerages.Kraken
                     if (Log.DebuggingEnabled)
                     {
                         var windowStartTime = Time.UnixTimeStampToDateTime(candlesList[0].Time);
-                        var windowEndTime = Time.UnixTimeStampToDateTime(lastValue.Time + resolutionInMs);
+                        var windowEndTime = Time.UnixTimeStampToDateTime(lastValue.Time + resolutionInSeconds);
                         Log.Debug($"KrakenBrokerage.GetOhlcHistory(): Received [{marketSymbol}] data for time period from {windowStartTime.ToStringInvariant()} to {windowEndTime.ToStringInvariant()}..");
                     }
 
-                    start = (long) lastValue.Time + resolutionInMs;
+                    start = lastValue.Time + resolutionInSeconds;
 
                     for (var i = 0; i < candlesList.Count; i++)
                     {
@@ -625,7 +622,7 @@ namespace QuantConnect.Brokerages.Kraken
                 var timeframe = $"&since={start}";
 
                 var token =  MakeRequest(url + timeframe, "GetTradeBars");
-                var tradesList = token["result"][marketSymbol].ToObject<List<KrakenTrade>>();
+                var tradesList = token["result"][marketSymbol].ToObject<List<KrakenTrade>>(JsonSerializer);
 
                 if (tradesList.Count > 0)
                 {
@@ -809,8 +806,8 @@ namespace QuantConnect.Brokerages.Kraken
                 {
                     information.Add("organizationId", organizationId);
                 }
-                var request = new RestRequest("modules/license/read", Method.POST) { RequestFormat = DataFormat.Json };
-                request.AddParameter("application/json", JsonConvert.SerializeObject(information), ParameterType.RequestBody);
+                // Create HTTP request
+                using var request = ApiUtils.CreateJsonPostRequest("modules/license/read", information);
                 api.TryRequest(request, out ModulesReadLicenseRead result);
                 if (!result.Success)
                 {
@@ -837,7 +834,7 @@ namespace QuantConnect.Brokerages.Kraken
                     var buffer = Convert.FromBase64String(info[0]);
                     var iv = Convert.FromBase64String(info[1]);
                     // Decrypt our information
-                    using var aes = new AesManaged();
+                    using var aes = Aes.Create();
                     var decryptor = aes.CreateDecryptor(key, iv);
                     using var memoryStream = new MemoryStream(buffer);
                     using var cryptoStream = new CryptoStream(memoryStream, decryptor, CryptoStreamMode.Read);

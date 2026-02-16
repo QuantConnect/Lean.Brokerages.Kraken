@@ -68,7 +68,7 @@ namespace QuantConnect.Tests.Brokerages.Kraken
             {
                 Log.Error("Environment doesn't have KRAKEN_PUBLIC variable");
             }
-            
+
             if (environment.Contains("KRAKEN_PRIVATE"))
             {
                 Config.Set("kraken-api-secret", environment["KRAKEN_PRIVATE"].ToString());
@@ -77,14 +77,14 @@ namespace QuantConnect.Tests.Brokerages.Kraken
             {
                 Log.Error("Environment doesn't have KRAKEN_PRIVATE variable");
             }
-            
+
             var apiKey = Config.Get("kraken-api-key");
             var apiSecret = Config.Get("kraken-api-secret");
             var tier = Config.Get("kraken-verification-tier");
             var orderBookDepth = Config.GetInt("kraken-orderbook-depth", 10);
 
 
-            return new KrakenBrokerage(apiKey, apiSecret, tier, orderBookDepth, algorithm.Object, new AggregationManager(), null);
+            return new KrakenBrokerage(apiKey, apiSecret, tier, orderBookDepth, algorithm.Object, orderProvider, new AggregationManager(), null);
         }
 
         protected override Symbol Symbol => StaticSymbol;
@@ -110,7 +110,7 @@ namespace QuantConnect.Tests.Brokerages.Kraken
             new TestCaseData(new NonUpdateableStopMarketOrderTestParameters(StaticSymbol, 70000, 30000)).SetName("StopMarketOrder"),
             new TestCaseData(new NonUpdateableLimitIfTouchedOrderTestParameters(StaticSymbol, 70000, 30000)).SetName("LimitIfTouchedOrder")
         };
-        
+
         public static TestCaseData[] CancelOrderParameters => new[] // without market
         {
             new TestCaseData(new LimitOrderTestParameters(StaticSymbol, 70000, 30000)).SetName("LimitOrder"),
@@ -118,7 +118,7 @@ namespace QuantConnect.Tests.Brokerages.Kraken
             new TestCaseData(new StopMarketOrderTestParameters(StaticSymbol, 70000, 30000)).SetName("StopMarketOrder"),
             new TestCaseData(new LimitIfTouchedOrderTestParameters(StaticSymbol, 70000, 30000)).SetName("LimitIfTouchedOrder"),
         };
-        
+
         protected override SecurityType SecurityType => SecurityType.Crypto;
         protected override bool IsAsync() => true;
 
@@ -246,16 +246,16 @@ namespace QuantConnect.Tests.Brokerages.Kraken
             {
                 initialStateDict.Add(kvp.Key, kvp.Value.Amount);
             }
-            
+
             // Open
             model.ProcessFill(portfolio, security, new OrderEvent(1, Symbol, DateTime.UtcNow, OrderStatus.Filled, OrderDirection.Buy, security.Price, 0.01m, OrderFee.Zero));
-            
+
             foreach (var kvp in portfolio.CashBook)
             {
                 var amount = initialStateDict[kvp.Key];
                 Assert.AreNotEqual(amount, kvp.Value.Amount);
             }
-            
+
             // Close
             model.ProcessFill(portfolio, security, new OrderEvent(2, Symbol, DateTime.UtcNow, OrderStatus.Filled, OrderDirection.Sell, security.Price, -0.01m, OrderFee.Zero));
 
@@ -265,7 +265,7 @@ namespace QuantConnect.Tests.Brokerages.Kraken
                 Assert.AreEqual(amount, kvp.Value.Amount);
             }
         }
-        
+
         [Test]
         public void ClosePositionTest()
         {
@@ -281,7 +281,7 @@ namespace QuantConnect.Tests.Brokerages.Kraken
                 MarketValue = 0.1m * security.Price,
                 UnrealizedPnL = 0
             };
-            
+
             security.Holdings.SetHoldings(holding.AveragePrice, holding.Quantity);
 
             var transactions = new SecurityTransactionManager(null, securities);

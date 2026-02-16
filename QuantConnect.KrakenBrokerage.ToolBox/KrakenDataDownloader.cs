@@ -40,7 +40,7 @@ namespace QuantConnect.ToolBox.KrakenDownloader
         public KrakenDataDownloader()
         {
             var tier = Config.Get("kraken-verification-tier", "Starter");
-            _brokerage = new KrakenBrokerage(null, null, tier, 10, null, null, null);
+            _brokerage = new KrakenBrokerage(null, null, tier, 10, null, null, null, null);
         }
 
         /// <summary>

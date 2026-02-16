@@ -17,6 +17,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using QuantConnect.Brokerages.Kraken.Models;
 using QuantConnect.Logging;
@@ -31,8 +32,16 @@ namespace QuantConnect.Brokerages.Kraken
 {
     public partial class KrakenBrokerage
     {
-        
-        private readonly ConcurrentDictionary<int, bool> _closedOrderEventSend = new ConcurrentDictionary<int, bool>();
+
+        private static readonly JsonSerializerSettings Settings = new()
+        {
+            Converters = new List<JsonConverter>() { new DecimalJsonConverter() }
+        };
+
+        private static JsonSerializer JsonSerializer => JsonSerializer.CreateDefault(Settings);
+
+        private readonly ConcurrentDictionary<int, bool> _closedOrderEventSend = new();
+
         /// <summary>
         /// Private message parser
         /// </summary>
@@ -67,28 +76,22 @@ namespace QuantConnect.Brokerages.Kraken
                         OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Information, 200, $"KrakenWS system status: {token["status"]}"));
                         return;
                     }
-                    Log.Trace($"{nameof(KrakenBrokerage)}.{nameof(OnMessage)}.JSON: {data.Message}");
+
+                    if (Log.DebuggingEnabled)
+                    {
+                        Log.Trace($"{nameof(KrakenBrokerage)}.{nameof(OnMessage)}.JSON: {data.Message}");
+                    }
 
                     if (response.Event == "addOrderStatus")
                     {
                         var addOrder = token.ToObject<KrakenWsAddOrderResponse>();
-                        var userref = addOrder.Reqid;
-                        var brokerId = addOrder.Txid;
-
-                        CachedOrderIDs.TryGetValue(userref, out var order);
+                        var order = FindOrderByBrokerageIds(addOrder.Txid, addOrder.ReqId);
                         if (response.Status != "error")
                         {
-                            if (order != null)
-                            {
-                                order.BrokerId.Clear();
-                                order.BrokerId.Add(brokerId);
-
-                                _closedOrderEventSend[order.Id] = false;
-                            }
-                            else
+                            if (order == null)
                             {
                                 // this shouldn't happen but just in case
-                                OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, -1, $"Unable to find order for request id: {userref}."));
+                                OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, -1, $"Unable to find order for request id: {addOrder.ReqId}."));
                             }
                         }
                         else
@@ -101,7 +104,7 @@ namespace QuantConnect.Brokerages.Kraken
                             // error
                             OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Error, -1, message));
                         }
-                        
+
                         return;
                     }
 
@@ -132,6 +135,22 @@ namespace QuantConnect.Brokerages.Kraken
             }
         }
 
+        private Order FindOrderByBrokerageIds(string txId, int? reqId)
+        {
+            if (reqId.HasValue && CachedOrderIDs.TryRemove(reqId.Value, out var originalOrder))
+            {
+                originalOrder.BrokerId.Add(txId);
+            }
+
+            var cloneOrder = _orderProvider.GetOrdersByBrokerageId(txId)?.SingleOrDefault();
+            if (cloneOrder != null)
+            {
+                return cloneOrder;
+            }
+
+            return null;
+        }
+
         private void EmitOrderEvent(JToken update)
         {
             foreach (var trade in update.Children())
@@ -140,24 +159,27 @@ namespace QuantConnect.Brokerages.Kraken
                 {
                     var data = trade.First as JProperty;
                     var brokerId = data.Name;
-
-                    var idOrder = CachedOrderIDs
-                        .FirstOrDefault(o => o.Value.BrokerId.Contains(brokerId));
-
-                    var order = idOrder.Value;
-
-                    var orderId = idOrder.Key;
-
-                    if (order == null)
+                    if (Log.DebuggingEnabled)
                     {
-                        order = _algorithm.Transactions.GetOrdersByBrokerageId(brokerId)?.SingleOrDefault();
-                        if (order == null)
-                        {
-                            Log.Error($"EmitOrderEvent(): order not found: BrokerId: {brokerId}");
-                            continue;
-                        }
+                        Log.Trace($"{nameof(KrakenBrokerage)}.{nameof(EmitOrderEvent)}.JSON: {data}");
                     }
 
+                    // `reqid` is not available in the Open Order events,
+                    int? requestId = null;
+                    var clientOrderId = data.Value["cl_ord_id"]?.ToObject<string>();
+                    if (!string.IsNullOrEmpty(clientOrderId) && int.TryParse(clientOrderId, out var reqId))
+                    {
+                        requestId = reqId;
+                    }
+
+                    var order = FindOrderByBrokerageIds(brokerId, requestId);
+                    if (order == null)
+                    {
+                        Log.Error($"EmitOrderEvent(): order not found: BrokerId: {brokerId}, Client Order Id: {clientOrderId}", true);
+                        continue;
+                    }
+
+                    var orderId = order.Id;
                     var updTime = DateTime.UtcNow;
                     CurrencyPairUtil.DecomposeCurrencyPair(order.Symbol, out var @base, out var quote);
                     OrderEvent orderEvent = null;
@@ -180,7 +202,7 @@ namespace QuantConnect.Brokerages.Kraken
                         {
                             status = GetOrderStatus(orderData.Status);
                         }
-                        else if (data.Value["flags"].ToString().Contains("touched")) // Limit if touched order have been touched
+                        else if (data.Value["flags"]?.ToObject<string>()?.Contains("touched") == true) // Limit if touched order have been touched
                         {
                             status = OrderStatus.UpdateSubmitted;
                         }
@@ -201,14 +223,14 @@ namespace QuantConnect.Brokerages.Kraken
 
                         // snapshot of all open orders
                         // when connected all orders come with a description
-                        if (data.Value["descr"] != null) 
+                        if (data.Value["descr"] != null)
                         {
                             var orderData = data.Value.ToObject<KrakenWsOpenOrder>();
-                            
+
                             fillPrice = orderData.Price;
                             fillQuantity = orderData.Vol_exec;
                             orderFee = new OrderFee(new CashAmount(orderData.Fee, feeCurrency));
-                            
+
                             status = GetOrderStatus(orderData.Status);
 
                             direction = orderData.Descr.Type == "sell" ? OrderDirection.Sell : OrderDirection.Buy;
@@ -217,12 +239,12 @@ namespace QuantConnect.Brokerages.Kraken
                         // when order placed, canceled, rejected, expired or filled we receive status update
                         else if (data.Value["status"] != null)
                         {
-                            var orderData = data.Value.ToObject<KrakenOrderStatusEvent>();
+                            var orderData = data.Value.ToObject<KrakenOrderStatusEvent>(JsonSerializer);
                             fillQuantity = orderData.Vol_exec;
                             orderFee = new OrderFee(new CashAmount(orderData.Fee, feeCurrency));
-                            
+
                             status = GetOrderStatus(orderData.Status);
-                            updTime = !string.IsNullOrEmpty(orderData.LastUpdated) ? Time.UnixTimeStampToDateTime(Convert.ToDecimal(orderData.LastUpdated)) : DateTime.UtcNow;
+                            updTime = orderData.LastUpdated.HasValue ? Time.UnixTimeStampToDateTime(orderData.LastUpdated.Value) : DateTime.UtcNow;;
 
                             direction = order.Direction;
                             fillPrice = orderData.Avg_Price;
@@ -230,13 +252,13 @@ namespace QuantConnect.Brokerages.Kraken
                         // trade execution
                         // when order filled (or partially filled) we receive information about this trade
                         // need this case because status isn't coming when order partially filled
-                        else 
+                        else
                         {
                             var orderData = data.Value.ToObject<KrakenTradeExecutionEvent>();
-                            
+
                             fillQuantity = orderData.Vol_exec;
                             orderFee = new OrderFee(new CashAmount(orderData.Fee, feeCurrency));
-                            
+
                             direction = order.Direction;
                             fillPrice = orderData.Avg_Price;
                         }
@@ -249,7 +271,7 @@ namespace QuantConnect.Brokerages.Kraken
                         {
                             status = OrderStatus.PartiallyFilled;
                         }
-                        
+
                         if (direction == OrderDirection.Sell)
                         {
                             fillQuantity *= -1;
@@ -257,11 +279,9 @@ namespace QuantConnect.Brokerages.Kraken
 
                         // when canceled it might not be present, which means we haven't seen it so it's okay, we didn't send the event yet
                         _closedOrderEventSend.TryGetValue(orderId, out var orderEventSent);
-                            
+
                         if (status is OrderStatus.Filled && orderEventSent || status is OrderStatus.Canceled)
                         {
-                            Order outOrder;
-                            CachedOrderIDs.TryRemove(orderId, out outOrder);
                             _rateLimiter.OrderRateLimitDecay(order.Symbol);
                             _fills.TryRemove(orderId, out _);
                             _closedOrderEventSend.TryRemove(orderId, out _);
@@ -283,9 +303,9 @@ namespace QuantConnect.Brokerages.Kraken
                             orderFee, $"Kraken Order Event {direction}"
                         );
                     }
-                    
+
                     OnOrderEvent(orderEvent);
-                    
+
                     if (status == OrderStatus.Filled)
                     {
                         _closedOrderEventSend[orderId] = true;
@@ -298,8 +318,8 @@ namespace QuantConnect.Brokerages.Kraken
                 }
             }
         }
-        
-        private JsonObject CreateKrakenOrder(Order order)
+
+        private JsonObject CreateKrakenOrder(Order order, int requestId)
         {
             var symbol = _symbolMapper.GetWebsocketSymbol(order.Symbol);
 
@@ -310,10 +330,9 @@ namespace QuantConnect.Brokerages.Kraken
                 {"volume", order.AbsoluteQuantity.ToStringInvariant()},
                 {"type", order.Direction == OrderDirection.Buy ? "buy" : "sell"},
                 {"token", WebsocketToken},
+                {"reqid", requestId },
+                {"cl_ord_id", requestId.ToStringInvariant()}
             };
-
-            CachedOrderIDs[order.Id] = order;
-            parameters.Add("reqid", order.Id);
 
             if (order is MarketOrder)
             {
