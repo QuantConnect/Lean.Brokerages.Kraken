@@ -202,7 +202,7 @@ namespace QuantConnect.Brokerages.Kraken
                         {
                             status = GetOrderStatus(orderData.Status);
                         }
-                        else if (data.Value["flags"]?.ToObject<string>().Contains("touched") == true) // Limit if touched order have been touched
+                        else if (data.Value["flags"]?.ToObject<string>()?.Contains("touched") == true) // Limit if touched order have been touched
                         {
                             status = OrderStatus.UpdateSubmitted;
                         }
