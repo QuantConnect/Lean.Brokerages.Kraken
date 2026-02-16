@@ -69,6 +69,11 @@ namespace QuantConnect.Brokerages.Kraken
         private bool _loggedInvalidDateRangeForHistory;
 
         /// <summary>
+        /// Enables or disables concurrent processing of messages to and from the brokerage.
+        /// </summary>
+        public override bool ConcurrencyEnabled => true;
+
+        /// <summary>
         /// Constructor for brokerage
         /// </summary>
         public KrakenBrokerage() : base("Kraken")
