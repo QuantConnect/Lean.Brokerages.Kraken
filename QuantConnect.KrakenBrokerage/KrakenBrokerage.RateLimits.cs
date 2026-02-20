@@ -30,7 +30,7 @@ namespace QuantConnect.Brokerages.Kraken
 
         // Open Order limits
         private const int OpenOrdersLimitPerTickerSafetyMargin = 10;
-        private readonly int _openOrdersRateLimitPerTicker = 0;
+        private readonly int _openOrdersRateLimitPerTicker;
 
         private readonly Dictionary<KrakenVerificationTier, int> _openOrdersRateLimitsPerTicker = new()
         {
@@ -39,17 +39,21 @@ namespace QuantConnect.Brokerages.Kraken
             [KrakenVerificationTier.Pro] = 225,
         };
 
-        // Transaction limits
-        private readonly int decayIntervalInMs;
-        private readonly Lock _transactionLocker = new();
+        // REST API rate limit
+        private readonly DecayingRateLimit _restApiRateLimit;
+
+        // Transaction limits per symbol
         private const int TransactionsLimitPerTickerSafetyMargin = 10;
-        private readonly ConcurrentDictionary<Symbol, (decimal, DateTime)> _transactionsCountersPerTicker = new();
-        private readonly int _transactionsLimitPerTicker = 0;
-        private readonly decimal _transactionsDecayPerTicker = 0;
+        private readonly ConcurrentDictionary<Symbol, DecayingRateLimit> _transactionRateLimitsPerSymbol = new();
+        private readonly int _transactionsLimitPerTicker;
+        private readonly decimal _transactionsDecayPerTicker;
+
+        private readonly int _decayIntervalInMs;
+
 
         private readonly Dictionary<KrakenVerificationTier, int> _transactionsLimitsPerTicker = new()
         {
-            [KrakenVerificationTier.Starter] = 12,
+            [KrakenVerificationTier.Starter] = 60,
             [KrakenVerificationTier.Intermediate] = 125,
             [KrakenVerificationTier.Pro] = 180,
         };
@@ -59,6 +63,20 @@ namespace QuantConnect.Brokerages.Kraken
             [KrakenVerificationTier.Starter] = 1m,
             [KrakenVerificationTier.Intermediate] = 2.34m,
             [KrakenVerificationTier.Pro] = 3.75m,
+        };
+
+        private readonly Dictionary<KrakenVerificationTier, int> _restLimitsPerTicker = new()
+        {
+            [KrakenVerificationTier.Starter] = 15,
+            [KrakenVerificationTier.Intermediate] = 20,
+            [KrakenVerificationTier.Pro] = 20,
+        };
+
+        private readonly Dictionary<KrakenVerificationTier, decimal> _restDecayLimitsPerTicker = new()
+        {
+            [KrakenVerificationTier.Starter] = 0.33m,
+            [KrakenVerificationTier.Intermediate] = 0.5m,
+            [KrakenVerificationTier.Pro] = 1m,
         };
 
         /// <summary>
@@ -73,7 +91,7 @@ namespace QuantConnect.Brokerages.Kraken
         /// <param name="timerInterval">Rate limit timer interval, useful for testing</param>
         public KrakenBrokerageRateLimits(string verificationTier, int timerInterval = 1000)
         {
-            decayIntervalInMs = timerInterval;
+            _decayIntervalInMs = timerInterval;
             _cancellationTokenSource = new CancellationTokenSource();
             if (!Enum.TryParse(verificationTier, true, out KrakenVerificationTier tier))
             {
@@ -83,8 +101,17 @@ namespace QuantConnect.Brokerages.Kraken
             }
 
             _openOrdersRateLimitPerTicker = _openOrdersRateLimitsPerTicker[tier] - OpenOrdersLimitPerTickerSafetyMargin;
+
             _transactionsLimitPerTicker = _transactionsLimitsPerTicker[tier] - TransactionsLimitPerTickerSafetyMargin;
             _transactionsDecayPerTicker = _transactionsDecayLimitsPerTicker[tier];
+
+            // Initialize REST API rate limit
+            _restApiRateLimit = new DecayingRateLimit(
+                _restLimitsPerTicker[tier],
+                _restDecayLimitsPerTicker[tier],
+                _decayIntervalInMs,
+                _cancellationTokenSource.Token);
+            _restApiRateLimit.Message += OnRateLimitMessage;
         }
 
         /// <summary>
@@ -98,68 +125,32 @@ namespace QuantConnect.Brokerages.Kraken
         }
 
         /// <summary>
-        /// Usual Rest request rate limit check
+        /// Gets or creates a rate limit for a specific symbol
         /// </summary>
-        private void TransactionLimitCheck(Symbol symbol, int weight)
+        private DecayingRateLimit GetOrCreateSymbolRateLimit(Symbol symbol)
         {
-            const int maxRetries = 10;
-            var retryCount = 0;
-
-            while (!TryUpdateCounter(symbol, weight, DateTime.UtcNow, out var diff))
+            return _transactionRateLimitsPerSymbol.GetOrAdd(symbol, _ =>
             {
-                if (retryCount >= maxRetries)
-                {
-                    throw new InvalidOperationException(
-                        $"Failed to acquire rate limit slot for {symbol} after {maxRetries} retries. " +
-                        "This may indicate excessive concurrent requests.");
-                }
-
-                var waitTimeInMs = (Math.Ceiling(Math.Abs(diff) / _transactionsDecayPerTicker) + 1) * decayIntervalInMs;
-                var waitTs = TimeSpan.FromMilliseconds((int)waitTimeInMs);
-                OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, "TransactionRateLimit",
-                    $"The API request has been rate limited. To avoid this message, please reduce the frequency of API calls. Will wait {waitTs.TotalSeconds} seconds..."));
-
-                _cancellationTokenSource.Token.WaitHandle.WaitOne(waitTs);
-                retryCount++;
-            }
-
-            bool TryUpdateCounter(Symbol sym, int wgt, DateTime dateTime, out decimal difference)
-            {
-                lock (_transactionLocker)
-                {
-                    var (counter, lastUsed) = _transactionsCountersPerTicker.GetOrAdd(sym, _ => (0, DateTime.UnixEpoch));
-                    var counterAfterDecay = Math.Max(counter - CalculatedDecaySinceLastUse(dateTime, lastUsed), 0);
-
-                    var counterAfterOperation = counterAfterDecay + wgt;
-                    difference = _transactionsLimitPerTicker - counterAfterOperation;
-
-                    if (difference >= 0)
-                    {
-                        _transactionsCountersPerTicker[sym] = (counterAfterOperation, dateTime);
-                        return true;
-                    }
-                    return false;
-                }
-            }
-
-            decimal CalculatedDecaySinceLastUse(DateTime dateTime, DateTime lastUsed1)
-            {
-                var decayIntervals = (decimal)(dateTime - lastUsed1).TotalMilliseconds / decayIntervalInMs;
-                var decay = decayIntervals * _transactionsDecayPerTicker;
-                return decay;
-            }
+                var rateLimit = new DecayingRateLimit(
+                    _transactionsLimitPerTicker,
+                    _transactionsDecayPerTicker,
+                    _decayIntervalInMs,
+                    _cancellationTokenSource.Token);
+                rateLimit.Message += OnRateLimitMessage;
+                return rateLimit;
+            });
         }
 
         /// <summary>
-        /// Kraken Add Order Rate limit check
+        /// Kraken Add Order Rate limit check (per symbol)
         /// </summary>
         /// <param name="symbol">Brokerage symbol</param>
         public bool AddOrderRateLimitWaitToProceed(Symbol symbol)
         {
             try
             {
-                TransactionLimitCheck(symbol, 1);
-                return true;
+                var rateLimit = GetOrCreateSymbolRateLimit(symbol);
+                return rateLimit.WaitToProceed(1, symbol.ToString());
             }
             catch
             {
@@ -168,7 +159,7 @@ namespace QuantConnect.Brokerages.Kraken
         }
 
         /// <summary>
-        /// Kraken Cancel Order Rate limit check
+        /// Kraken Cancel Order Rate limit check (per symbol)
         /// </summary>
         /// <param name="symbol">Brokerage symbol</param>
         /// <param name="time">Time order was placed</param>
@@ -177,8 +168,25 @@ namespace QuantConnect.Brokerages.Kraken
             try
             {
                 var weight = GetRateLimitWeightCancelOrder(time);
-                TransactionLimitCheck(symbol, weight);
-                return true;
+                var rateLimit = GetOrCreateSymbolRateLimit(symbol);
+                return rateLimit.WaitToProceed(weight, symbol.ToString());
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// REST API rate limit check (not per symbol)
+        /// </summary>
+        /// <param name="weight">Weight of the operation</param>
+        /// <param name="identifier">Identifier for logging</param>
+        public bool RestApiRateLimitWaitToProceed(int weight = 1, string identifier = "")
+        {
+            try
+            {
+                return _restApiRateLimit.WaitToProceed(weight, identifier);
             }
             catch
             {
@@ -222,7 +230,7 @@ namespace QuantConnect.Brokerages.Kraken
             return 0;
         }
 
-        private void OnMessage(BrokerageMessageEvent messageEvent)
+        private void OnRateLimitMessage(object sender, BrokerageMessageEvent messageEvent)
         {
             Message?.Invoke(this, messageEvent);
         }
@@ -233,6 +241,12 @@ namespace QuantConnect.Brokerages.Kraken
         public void Dispose()
         {
             _cancellationTokenSource.Cancel();
+            _restApiRateLimit?.Dispose();
+            foreach (var rateLimit in _transactionRateLimitsPerSymbol.Values)
+            {
+                rateLimit?.Dispose();
+            }
+            _transactionRateLimitsPerSymbol.Clear();
         }
     }
 }
