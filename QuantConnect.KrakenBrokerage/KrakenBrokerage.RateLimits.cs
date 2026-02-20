@@ -11,15 +11,12 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
-*/
+ */
 
 using System;
-using System.Timers;
+using System.Collections.Concurrent;
 using System.Threading;
-using QuantConnect.Util;
-using QuantConnect.Logging;
 using System.Collections.Generic;
-using Timer = System.Timers.Timer;
 using QuantConnect.Brokerages.Kraken.Models;
 
 namespace QuantConnect.Brokerages.Kraken
@@ -29,36 +26,40 @@ namespace QuantConnect.Brokerages.Kraken
     /// </summary>
     public class KrakenBrokerageRateLimits : IDisposable
     {
-        private readonly Timer _1sRateLimitTimer;
         private readonly CancellationTokenSource _cancellationTokenSource;
-        private readonly Dictionary<Symbol, int> _rateLimitsOrderPerSymbolDictionary;
-        private readonly Dictionary<string, decimal> _rateLimitsCancelPerSymbolDictionary;
 
-        /// <summary>
-        /// Lockers to make code thread safe
-        /// </summary>
-        private readonly object RestLocker = new();
-        private readonly object OrderLocker = new();
-        private readonly object CancelLocker = new();
+        // Open Order limits
+        private const int OpenOrdersLimitPerTickerSafetyMargin = 10;
+        private readonly int _openOrdersRateLimitPerTicker = 0;
 
-        // By default - Starter verification tier limits
-        private readonly Dictionary<KrakenRateLimitType, decimal> _rateLimitsDictionary = new ()
+        private readonly Dictionary<KrakenVerificationTier, int> _openOrdersRateLimitsPerTicker = new()
         {
-            {KrakenRateLimitType.Common, 15},
-            {KrakenRateLimitType.Orders, 2},
-            {KrakenRateLimitType.Cancel, 2}
+            [KrakenVerificationTier.Starter] = 60,
+            [KrakenVerificationTier.Intermediate] = 80,
+            [KrakenVerificationTier.Pro] = 225,
         };
 
-        private readonly Dictionary<KrakenRateLimitType, decimal> _rateLimitsDecayDictionary = new ()
+        // Transaction limits
+        private readonly int decayIntervalInMs;
+        private readonly Lock _transactionLocker = new();
+        private const int TransactionsLimitPerTickerSafetyMargin = 10;
+        private readonly ConcurrentDictionary<Symbol, (decimal, DateTime)> _transactionsCountersPerTicker = new();
+        private readonly int _transactionsLimitPerTicker = 0;
+        private readonly decimal _transactionsDecayPerTicker = 0;
+
+        private readonly Dictionary<KrakenVerificationTier, int> _transactionsLimitsPerTicker = new()
         {
-            {KrakenRateLimitType.Common, 0.33m},
-            {KrakenRateLimitType.Cancel, 1m},
+            [KrakenVerificationTier.Starter] = 12,
+            [KrakenVerificationTier.Intermediate] = 125,
+            [KrakenVerificationTier.Pro] = 180,
         };
 
-        /// <summary>
-        /// The rest rate limit counter
-        /// </summary>
-        protected decimal RateLimitCounter { get; private set; }
+        private readonly Dictionary<KrakenVerificationTier, decimal> _transactionsDecayLimitsPerTicker = new()
+        {
+            [KrakenVerificationTier.Starter] = 1m,
+            [KrakenVerificationTier.Intermediate] = 2.34m,
+            [KrakenVerificationTier.Pro] = 3.75m,
+        };
 
         /// <summary>
         /// Event that fires when an error is encountered in the brokerage
@@ -66,113 +67,103 @@ namespace QuantConnect.Brokerages.Kraken
         public event EventHandler<BrokerageMessageEvent> Message;
 
         /// <summary>
-        /// Choosing right rate limits based on verification tier
+        /// Choosing the right rate limits based on the verification tier
         /// </summary>
         /// <param name="verificationTier">Starter, Intermediate, Pro</param>
         /// <param name="timerInterval">Rate limit timer interval, useful for testing</param>
         public KrakenBrokerageRateLimits(string verificationTier, int timerInterval = 1000)
         {
-            _1sRateLimitTimer = new Timer(timerInterval);
+            decayIntervalInMs = timerInterval;
             _cancellationTokenSource = new CancellationTokenSource();
-            _rateLimitsOrderPerSymbolDictionary = new Dictionary<Symbol, int>();
-            _rateLimitsCancelPerSymbolDictionary = new Dictionary<string, decimal>();
-
-            Enum.TryParse(verificationTier, true, out KrakenVerificationTier tier);
-
-            switch (tier)
+            if (!Enum.TryParse(verificationTier, true, out KrakenVerificationTier tier))
             {
-                case KrakenVerificationTier.Starter:
-                    _rateLimitsDictionary[KrakenRateLimitType.Common] = 15;
-                    _rateLimitsDictionary[KrakenRateLimitType.Orders] = 2;
-                    _rateLimitsDictionary[KrakenRateLimitType.Cancel] = 2;
-                    _rateLimitsDecayDictionary[KrakenRateLimitType.Common] = 0.33m;
-                    _rateLimitsDecayDictionary[KrakenRateLimitType.Cancel] = 1m;
-                    break;
-                case KrakenVerificationTier.Intermediate:
-                    _rateLimitsDictionary[KrakenRateLimitType.Common] = 20;
-                    _rateLimitsDictionary[KrakenRateLimitType.Orders] = 80;
-                    _rateLimitsDictionary[KrakenRateLimitType.Cancel] = 125;
-                    _rateLimitsDecayDictionary[KrakenRateLimitType.Common] = 0.5m;
-                    _rateLimitsDecayDictionary[KrakenRateLimitType.Cancel] = 2.34m;
-                    break;
-                case KrakenVerificationTier.Pro:
-                    _rateLimitsDictionary[KrakenRateLimitType.Common] = 20;
-                    _rateLimitsDictionary[KrakenRateLimitType.Orders] = 225;
-                    _rateLimitsDictionary[KrakenRateLimitType.Cancel] = 180;
-                    _rateLimitsDecayDictionary[KrakenRateLimitType.Common] = 1;
-                    _rateLimitsDecayDictionary[KrakenRateLimitType.Cancel] = 3.75m;
-                    break;
-                default:
-                    throw new ArgumentException($"Unexpected rate limit tier {tier}");
+                var availableTiers = string.Join(", ", Enum.GetNames(typeof(KrakenVerificationTier)));
+                throw new ArgumentOutOfRangeException(nameof(verificationTier),
+                    $"Invalid verification tier '{verificationTier}'. Available tiers: {availableTiers}");
             }
 
-            _1sRateLimitTimer.Elapsed += DecaySpotRateLimits;
-            _1sRateLimitTimer.Start();
+            _openOrdersRateLimitPerTicker = _openOrdersRateLimitsPerTicker[tier] - OpenOrdersLimitPerTickerSafetyMargin;
+            _transactionsLimitPerTicker = _transactionsLimitsPerTicker[tier] - TransactionsLimitPerTickerSafetyMargin;
+            _transactionsDecayPerTicker = _transactionsDecayLimitsPerTicker[tier];
+        }
+
+        /// <summary>
+        /// Checks if the current open orders are less than the tier allowance
+        /// </summary>
+        /// <param name="symbolOpenOrders">Current open orders per symbol</param>
+        /// <exception cref="BrokerageException"> Rate limit exceeded</exception>
+        public bool IsWithinOpenOrderLimit(int symbolOpenOrders)
+        {
+            return symbolOpenOrders < _openOrdersRateLimitPerTicker;
         }
 
         /// <summary>
         /// Usual Rest request rate limit check
         /// </summary>
-        public void RateLimitCheck()
+        private void TransactionLimitCheck(Symbol symbol, int weight)
         {
-            bool isExceeded;
-            lock (RestLocker)
+            const int maxRetries = 10;
+            var retryCount = 0;
+
+            while (!TryUpdateCounter(symbol, weight, DateTime.UtcNow, out var diff))
             {
-                isExceeded = ++RateLimitCounter > _rateLimitsDictionary[KrakenRateLimitType.Common];
-            }
-
-            if (isExceeded)
-            {
-                Message?.Invoke(this, new BrokerageMessageEvent(BrokerageMessageType.Warning, "RestRateLimit",
-                    $"The API request has been rate limited. To avoid this message, please reduce the frequency of API calls. Will wait {GetRateLimitedWait()}..."));
-
-                _cancellationTokenSource.Token.WaitHandle.WaitOne(GetRateLimitedWait());
-            }
-        }
-
-        /// <summary>
-        /// Kraken order rate
-        /// </summary>
-        /// <param name="symbol">Brokerage symbol</param>
-        /// <exception cref="BrokerageException"> Rate limit exceeded</exception>
-        public void OrderRateLimitCheck(Symbol symbol)
-        {
-            int currentOrdersCount;
-            lock (OrderLocker)
-            {
-                _rateLimitsOrderPerSymbolDictionary.TryGetValue(symbol, out currentOrdersCount);
-                _rateLimitsOrderPerSymbolDictionary[symbol] = ++currentOrdersCount;
-            }
-
-            if (currentOrdersCount >= _rateLimitsDictionary[KrakenRateLimitType.Orders])
-            {
-                Message?.Invoke(this, new BrokerageMessageEvent(BrokerageMessageType.Error, "RateLimit",
-                    $"Placing new orders of {symbol} symbol is not allowed. Your order limit: {_rateLimitsDictionary[KrakenRateLimitType.Orders]}, opened orders now: {currentOrdersCount}. " +
-                    "Cancel orders to have ability to place new."));
-
-                throw new BrokerageException("Order placing limit is exceeded. Cancel open orders and then place new ones.");
-            }
-        }
-
-        /// <summary>
-        /// Kraken order rate decay
-        /// </summary>
-        /// <param name="symbol">Brokerage symbol</param>
-        public void OrderRateLimitDecay(Symbol symbol)
-        {
-            lock (OrderLocker)
-            {
-                if (_rateLimitsOrderPerSymbolDictionary.TryGetValue(symbol, out var currentOrdersCount))
+                if (retryCount >= maxRetries)
                 {
-                    if (currentOrdersCount <= 0)
-                    {
-                        _rateLimitsOrderPerSymbolDictionary[symbol] = 0;
-                    }
-                    else
-                    {
-                        _rateLimitsOrderPerSymbolDictionary[symbol]--;
-                    }
+                    throw new InvalidOperationException(
+                        $"Failed to acquire rate limit slot for {symbol} after {maxRetries} retries. " +
+                        "This may indicate excessive concurrent requests.");
                 }
+
+                var waitTimeInMs = (Math.Ceiling(Math.Abs(diff) / _transactionsDecayPerTicker) + 1) * decayIntervalInMs;
+                var waitTs = TimeSpan.FromMilliseconds((int)waitTimeInMs);
+                OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, "TransactionRateLimit",
+                    $"The API request has been rate limited. To avoid this message, please reduce the frequency of API calls. Will wait {waitTs.TotalSeconds} seconds..."));
+
+                _cancellationTokenSource.Token.WaitHandle.WaitOne(waitTs);
+                retryCount++;
+            }
+
+            bool TryUpdateCounter(Symbol sym, int wgt, DateTime dateTime, out decimal difference)
+            {
+                lock (_transactionLocker)
+                {
+                    var (counter, lastUsed) = _transactionsCountersPerTicker.GetOrAdd(sym, _ => (0, DateTime.UnixEpoch));
+                    var counterAfterDecay = Math.Max(counter - CalculatedDecaySinceLastUse(dateTime, lastUsed), 0);
+
+                    var counterAfterOperation = counterAfterDecay + wgt;
+                    difference = _transactionsLimitPerTicker - counterAfterOperation;
+
+                    if (difference >= 0)
+                    {
+                        _transactionsCountersPerTicker[sym] = (counterAfterOperation, dateTime);
+                        return true;
+                    }
+                    return false;
+                }
+            }
+
+            decimal CalculatedDecaySinceLastUse(DateTime dateTime, DateTime lastUsed1)
+            {
+                var decayIntervals = (decimal)(dateTime - lastUsed1).TotalMilliseconds / decayIntervalInMs;
+                var decay = decayIntervals * _transactionsDecayPerTicker;
+                return decay;
+            }
+        }
+
+        /// <summary>
+        /// Kraken Add Order Rate limit check
+        /// </summary>
+        /// <param name="symbol">Brokerage symbol</param>
+        public bool AddOrderRateLimitWaitToProceed(Symbol symbol)
+        {
+            try
+            {
+                TransactionLimitCheck(symbol, 1);
+                return true;
+            }
+            catch
+            {
+                return false;
             }
         }
 
@@ -181,34 +172,18 @@ namespace QuantConnect.Brokerages.Kraken
         /// </summary>
         /// <param name="symbol">Brokerage symbol</param>
         /// <param name="time">Time order was placed</param>
-        public void CancelOrderRateLimitCheck(string symbol, DateTime time)
+        public bool CancelOrderRateLimitWaitToProceed(Symbol symbol, DateTime time)
         {
-            var weight = GetRateLimitWeightCancelOrder(time);
-            decimal currentCancelOrderRate;
-
-            lock (CancelLocker)
+            try
             {
-                _rateLimitsCancelPerSymbolDictionary.TryGetValue(symbol, out currentCancelOrderRate);
-                currentCancelOrderRate += weight;
-                _rateLimitsCancelPerSymbolDictionary[symbol] = currentCancelOrderRate;
+                var weight = GetRateLimitWeightCancelOrder(time);
+                TransactionLimitCheck(symbol, weight);
+                return true;
             }
-
-            if (currentCancelOrderRate >= _rateLimitsDictionary[KrakenRateLimitType.Cancel])
+            catch
             {
-                Message?.Invoke(this, new BrokerageMessageEvent(BrokerageMessageType.Warning, "CancelRateLimit",
-                    $"The cancel order API request has been rate limited. To avoid this message, please reduce the frequency of cancel order API calls. Will wait {GetRateLimitedWait()}..."));
-
-                _cancellationTokenSource.Token.WaitHandle.WaitOne(GetRateLimitedWait());
+                return false;
             }
-        }
-
-        /// <summary>
-        /// Returns the gate limit wait time
-        /// </summary>
-        /// <remarks>Useful for faster testing</remarks>
-        protected virtual TimeSpan GetRateLimitedWait()
-        {
-            return TimeSpan.FromSeconds(20);
         }
 
         private int GetRateLimitWeightCancelOrder(DateTime time)
@@ -247,28 +222,9 @@ namespace QuantConnect.Brokerages.Kraken
             return 0;
         }
 
-        private void DecaySpotRateLimits(object o, ElapsedEventArgs agrs)
+        private void OnMessage(BrokerageMessageEvent messageEvent)
         {
-            try
-            {
-                lock (RestLocker)
-                {
-                    RateLimitCounter = Math.Max(0, RateLimitCounter - _rateLimitsDecayDictionary[KrakenRateLimitType.Common]);
-                }
-
-                var cancelDecay = _rateLimitsDecayDictionary[KrakenRateLimitType.Cancel];
-                lock (CancelLocker)
-                {
-                    foreach (var key in _rateLimitsCancelPerSymbolDictionary.Keys)
-                    {
-                        _rateLimitsCancelPerSymbolDictionary[key] = Math.Max(0, _rateLimitsCancelPerSymbolDictionary[key] - cancelDecay);
-                    }
-                }
-            }
-            catch (Exception e)
-            {
-                Log.Error(e);
-            }
+            Message?.Invoke(this, messageEvent);
         }
 
         /// <summary>
@@ -277,8 +233,6 @@ namespace QuantConnect.Brokerages.Kraken
         public void Dispose()
         {
             _cancellationTokenSource.Cancel();
-            _1sRateLimitTimer?.Stop();
-            _1sRateLimitTimer.DisposeSafely();
         }
     }
 }
