@@ -182,16 +182,9 @@ namespace QuantConnect.Brokerages.Kraken
         /// </summary>
         /// <param name="weight">Weight of the operation</param>
         /// <param name="identifier">Identifier for logging</param>
-        public bool RestApiRateLimitWaitToProceed(int weight = 1, string identifier = "")
+        public void RestApiRateLimitWaitToProceed(int weight = 1, string identifier = "")
         {
-            try
-            {
-                return _restApiRateLimit.WaitToProceed(weight, identifier);
-            }
-            catch
-            {
-                return false;
-            }
+            _ = _restApiRateLimit.WaitToProceed(weight, identifier);
         }
 
         private int GetRateLimitWeightCancelOrder(DateTime time)
@@ -222,7 +215,7 @@ namespace QuantConnect.Brokerages.Kraken
                 return 2;
             }
 
-            if (timePassed < TimeSpan.FromSeconds(900))
+            if (timePassed < TimeSpan.FromSeconds(300))
             {
                 return 1;
             }

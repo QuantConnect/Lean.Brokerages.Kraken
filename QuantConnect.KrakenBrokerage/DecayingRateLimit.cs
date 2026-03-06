@@ -36,7 +36,7 @@ namespace QuantConnect.Brokerages.Kraken
         private DateTime _lastUpdated;
 
         /// <summary>
-        /// Event that fires when rate limit is exceeded and waiting is required
+        /// Event that fires when the rate limit is exceeded and waiting is required
         /// </summary>
         public event EventHandler<BrokerageMessageEvent> Message;
 

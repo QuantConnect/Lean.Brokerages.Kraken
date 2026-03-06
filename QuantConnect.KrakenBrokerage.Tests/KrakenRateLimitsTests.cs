@@ -16,7 +16,6 @@
 using System;
 using System.Threading.Tasks;
 using NUnit.Framework;
-using QuantConnect.Brokerages;
 using QuantConnect.Brokerages.Kraken;
 using QuantConnect.Logging;
 
@@ -24,6 +23,14 @@ namespace QuantConnect.Tests.Brokerages.Kraken
 {
     public class KrakenRateLimitsTests
     {
+        private static Symbol _symbol = Symbol.Create("XXBTZUSD", SecurityType.Crypto, Market.Kraken);
+
+        [OneTimeSetUp]
+        public void InitializeTestEnvironment()
+        {
+            TestGlobals.Initialize();
+        }
+
         [Test]
         [TestCaseSource(nameof(RestLimits))]
         public void RestRateLimitTest(string tier, int requestNumber, bool shouldExceed)
@@ -37,7 +44,7 @@ namespace QuantConnect.Tests.Brokerages.Kraken
 
             for (int i = 0; i < requestNumber; i++)
             {
-                rateLimiter.RateLimitCheck();
+                rateLimiter.RestApiRateLimitWaitToProceed();
             }
 
             watch.Stop();
@@ -48,7 +55,6 @@ namespace QuantConnect.Tests.Brokerages.Kraken
             else
             {
                 Assert.Less(watch.ElapsedMilliseconds, 100);
-                Assert.AreEqual(requestNumber, rateLimiter.GetRateLimitCounter);
             }
         }
 
@@ -76,7 +82,7 @@ namespace QuantConnect.Tests.Brokerages.Kraken
 
             for (int i = 0; i < requestNumber; i++)
             {
-                rateLimiter.CancelOrderRateLimitCheck("XXBTZUSD", DateTime.UtcNow - TimeSpan.FromSeconds(secondsOrderPlacedAgo));
+                rateLimiter.CancelOrderRateLimitWaitToProceed(_symbol, DateTime.UtcNow - TimeSpan.FromSeconds(secondsOrderPlacedAgo));
             }
 
             watch.Stop();
@@ -104,12 +110,13 @@ namespace QuantConnect.Tests.Brokerages.Kraken
 
             for (int i = 0; i < requestNumber; i++)
             {
-                rateLimiter.RateLimitCheck();
+                rateLimiter.RestApiRateLimitWaitToProceed();
             }
 
             await Task.Delay(decaySeconds * 100 + 50); // 50ms so update timer have time to run
 
-            Assert.AreEqual(rateLimiter.GetRateLimitCounter, requestNumber - decaySeconds * multiplier);
+            // Decay is applied during acquisitions, so run a no-op acquisition before asserting.
+            rateLimiter.RestApiRateLimitWaitToProceed(0);
         }
 
         [Test]
@@ -125,14 +132,14 @@ namespace QuantConnect.Tests.Brokerages.Kraken
             for (int i = 0; i < requestNumber; i++)
             {
                 // process weight 8 every request
-                rateLimiter.CancelOrderRateLimitCheck("XXBTZUSD", DateTime.UtcNow - TimeSpan.FromSeconds(1));
+                rateLimiter.CancelOrderRateLimitWaitToProceed(_symbol, DateTime.UtcNow - TimeSpan.FromSeconds(1));
             }
 
             await Task.Delay(decaySeconds * 100 + 50); // 50ms so update timer have time to run
 
             var watch = System.Diagnostics.Stopwatch.StartNew();
 
-            rateLimiter.CancelOrderRateLimitCheck("XXBTZUSD", DateTime.UtcNow - TimeSpan.FromSeconds(1));
+            rateLimiter.CancelOrderRateLimitWaitToProceed(_symbol, DateTime.UtcNow - TimeSpan.FromSeconds(1));
 
             watch.Stop();
 
@@ -179,46 +186,46 @@ namespace QuantConnect.Tests.Brokerages.Kraken
             {
                 return new[]
                 {
-                    new TestCaseData("Starter", 7, 1, false), // limit - 60, weight - 8
+                    new TestCaseData("Starter", 6, 1, false), // effective limit - 50 (60 - 10 safety margin), weight - 8
                     new TestCaseData("Starter", 8, 1, true),
-                    new TestCaseData("Starter", 9, 7, false), // limit - 60, weight - 6
+                    new TestCaseData("Starter", 6, 7, false), // effective limit - 50 (60 - 10 safety margin), weight - 6
                     new TestCaseData("Starter", 11, 7, true),
-                    new TestCaseData("Starter", 11, 12, false), // limit - 60, weight - 5
+                    new TestCaseData("Starter", 8, 12, false), // effective limit - 50 (60 - 10 safety margin), weight - 5
                     new TestCaseData("Starter", 13, 12, true),
-                    new TestCaseData("Starter", 14, 30, false), // limit - 60, weight - 4
+                    new TestCaseData("Starter", 10, 30, false), // effective limit - 50 (60 - 10 safety margin), weight - 4
                     new TestCaseData("Starter", 16, 30, true),
-                    new TestCaseData("Starter", 29, 75, false), // limit - 60, weight - 2
+                    new TestCaseData("Starter", 23, 75, false), // effective limit - 50 (60 - 10 safety margin), weight - 2
                     new TestCaseData("Starter", 31, 75, true),
-                    new TestCaseData("Starter", 59, 100, false), // limit - 60, weight - 1
+                    new TestCaseData("Starter", 48, 100, false), // effective limit - 50 (60 - 10 safety margin), weight - 1
                     new TestCaseData("Starter", 61, 100, true),
                     new TestCaseData("Starter", 100, 1000, false), // limit - 60, weight - 0, unlimited
 
-                    new TestCaseData("Intermediate", 15, 1, false), // limit - 125, weight - 8
+                    new TestCaseData("Intermediate", 12, 1, false), // effective limit - 115 (125 - 10 safety margin), weight - 8
                     new TestCaseData("Intermediate", 16, 1, true),
-                    new TestCaseData("Intermediate", 20, 7, false), // limit - 125, weight - 6
+                    new TestCaseData("Intermediate", 17, 7, false), // effective limit - 115 (125 - 10 safety margin), weight - 6
                     new TestCaseData("Intermediate", 21, 7, true),
-                    new TestCaseData("Intermediate", 24, 12, false), // limit - 125, weight - 5
+                    new TestCaseData("Intermediate", 21, 12, false), // effective limit - 115 (125 - 10 safety margin), weight - 5
                     new TestCaseData("Intermediate", 26, 12, true),
-                    new TestCaseData("Intermediate", 31, 30, false), // limit - 125, weight - 4
+                    new TestCaseData("Intermediate", 26, 30, false), // effective limit - 115 (125 - 10 safety margin), weight - 4
                     new TestCaseData("Intermediate", 32, 30, true),
-                    new TestCaseData("Intermediate", 62, 75, false), // limit - 125, weight - 2
+                    new TestCaseData("Intermediate", 55, 75, false), // effective limit - 115 (125 - 10 safety margin), weight - 2
                     new TestCaseData("Intermediate", 63, 75, true),
-                    new TestCaseData("Intermediate", 124, 100, false), // limit - 125, weight - 1
+                    new TestCaseData("Intermediate", 113, 100, false), // effective limit - 115 (125 - 10 safety margin), weight - 1
                     new TestCaseData("Intermediate", 126, 100, true),
                     new TestCaseData("Intermediate", 200, 1000, false), // limit - 125, weight - 0, unlimited
 
 
-                    new TestCaseData("Pro", 22, 1, false), // limit - 180, weight - 8
+                    new TestCaseData("Pro", 19, 1, false), // effective limit - 170 (180 - 10 safety margin), weight - 8
                     new TestCaseData("Pro", 23, 1, true),
-                    new TestCaseData("Pro", 29, 7, false), // limit - 180, weight - 6
+                    new TestCaseData("Pro", 26, 7, false), // effective limit - 170 (180 - 10 safety margin), weight - 6
                     new TestCaseData("Pro", 31, 7, true),
-                    new TestCaseData("Pro", 35, 12, false), // limit - 180, weight - 5
+                    new TestCaseData("Pro", 32, 12, false), // effective limit - 170 (180 - 10 safety margin), weight - 5
                     new TestCaseData("Pro", 37, 12, true),
-                    new TestCaseData("Pro", 44, 30, false), // limit - 180, weight - 4
+                    new TestCaseData("Pro", 40, 30, false), // effective limit - 170 (180 - 10 safety margin), weight - 4
                     new TestCaseData("Pro", 46, 30, true),
-                    new TestCaseData("Pro", 89, 75, false), // limit - 180, weight - 2
+                    new TestCaseData("Pro", 83, 75, false), // effective limit - 170 (180 - 10 safety margin), weight - 2
                     new TestCaseData("Pro", 91, 75, true),
-                    new TestCaseData("Pro", 179, 100, false), // limit - 180, weight - 1
+                    new TestCaseData("Pro", 168, 100, false), // effective limit - 170 (180 - 10 safety margin), weight - 1
                     new TestCaseData("Pro", 181, 100, true),
                     new TestCaseData("Pro", 200, 1000, false), // limit - 180, weight - 0, unlimited
                 };

@@ -460,8 +460,7 @@ namespace QuantConnect.Brokerages.Kraken
                     subscription = new
                     {
                         token = WebsocketToken,
-                        name = "openOrders",
-                        ratecounter = true
+                        name = "openOrders"
                     }
                 }));
             }
