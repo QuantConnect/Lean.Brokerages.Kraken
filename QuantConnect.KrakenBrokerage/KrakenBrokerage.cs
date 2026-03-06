@@ -91,8 +91,7 @@ namespace QuantConnect.Brokerages.Kraken
         /// <param name="orderProvider">The order provider instance</param>
         /// <param name="aggregator"><see cref="IDataAggregator"/> instance</param>
         /// <param name="job">Lean <see cref="LiveNodePacket"/></param>
-        public KrakenBrokerage(string apiKey, string apiSecret, string verificationTier, int orderBookDepth,
-            IAlgorithm algorithm, IOrderProvider orderProvider, IDataAggregator aggregator, LiveNodePacket job)
+        public KrakenBrokerage(string apiKey, string apiSecret, string verificationTier, int orderBookDepth, IAlgorithm algorithm, IOrderProvider orderProvider, IDataAggregator aggregator, LiveNodePacket job)
             : base("Kraken")
         {
             Initialize(apiKey, apiSecret, verificationTier, orderBookDepth, algorithm, orderProvider, aggregator, job);
@@ -105,8 +104,7 @@ namespace QuantConnect.Brokerages.Kraken
         /// /// <param name="orderProvider">The order provider instance</param>
         /// <param name="aggregator"><see cref="IDataAggregator"/> instance</param>
         /// <param name="job">Lean <see cref="LiveNodePacket"/></param>
-        public KrakenBrokerage(IAlgorithm algorithm, IOrderProvider orderProvider, IDataAggregator aggregator,
-            LiveNodePacket job)
+        public KrakenBrokerage(IAlgorithm algorithm, IOrderProvider orderProvider, IDataAggregator aggregator, LiveNodePacket job)
             :
             this(Config.Get("kraken-api-key"),
                 Config.Get("kraken-api-secret"),
@@ -192,14 +190,12 @@ namespace QuantConnect.Brokerages.Kraken
                     case "STOP-LOSS-LIMIT":
                         var stpPrice = krakenOrder.Descr.Price;
                         var limitPrice = krakenOrder.Descr.Price2;
-                        order = new StopLimitOrder(symbol, quantity, stpPrice, limitPrice, time,
-                            properties: properties);
+                        order = new StopLimitOrder(symbol, quantity, stpPrice, limitPrice, time, properties: properties);
                         break;
                     case "TAKE-PROFIT-LIMIT":
                         var takePrice = krakenOrder.Descr.Price;
                         var lmtPrice = krakenOrder.Descr.Price2;
-                        order = new LimitIfTouchedOrder(symbol, quantity, takePrice, lmtPrice, time,
-                            properties: properties);
+                        order = new LimitIfTouchedOrder(symbol, quantity, takePrice, lmtPrice, time, properties: properties);
                         break;
                     default:
                         OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Error, -1,
