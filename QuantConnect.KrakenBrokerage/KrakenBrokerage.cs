@@ -55,6 +55,7 @@ namespace QuantConnect.Brokerages.Kraken
         private KrakenBrokerageRateLimits _rateLimiter;
 
         private const int MaximumSymbolsPerConnection = 50;
+        private byte[] _secretDecoded;
         private const string _apiUrl = "https://api.kraken.com";
         private const string _wsUrl = "wss://ws.kraken.com";
         private const string _wsAuthUrl = "wss://ws-auth.kraken.com";
@@ -541,6 +542,7 @@ namespace QuantConnect.Brokerages.Kraken
             ValidateSubscription();
 
             base.Initialize(_wsAuthUrl, new KrakenWebSocketWrapper(null), new RestClient(_apiUrl), apiKey, apiSecret);
+            _secretDecoded = Convert.FromBase64String(ApiSecret);
             _algorithm = algorithm;
             _orderProvider = orderProvider;
             _job = job;
