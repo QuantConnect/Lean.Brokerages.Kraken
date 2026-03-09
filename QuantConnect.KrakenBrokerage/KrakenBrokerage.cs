@@ -682,8 +682,8 @@ namespace QuantConnect.Brokerages.Kraken
 
                     for (var i = 0; i < tradesList.Count; i++)
                     {
-                        if (tradesList[i].Time >
-                            end) // no "to" param in Kraken and it returns just 1000 candles since start timestamp
+                        // no "to" param in Kraken and it returns just 1000 candles since start timestamp
+                        if (tradesList[i].Time > end)
                         {
                             yield break;
                         }
@@ -721,8 +721,7 @@ namespace QuantConnect.Brokerages.Kraken
         /// <param name="isPrivate">Does need authentication</param>
         /// <returns><see cref="IRestResponse"/> for request</returns>
         /// <exception cref="Exception">Kraken api exception</exception>
-        private JToken MakeRequest(string query, string methodCaller, IDictionary<string, object> requestBody = null,
-            Method method = Method.GET, bool isPrivate = false)
+        private JToken MakeRequest(string query, string methodCaller, IDictionary<string, object> requestBody = null, Method method = Method.GET, bool isPrivate = false)
         {
             Dictionary<string, string> headers = null;
             if (isPrivate)
@@ -744,8 +743,7 @@ namespace QuantConnect.Brokerages.Kraken
 
             if (response.StatusCode != HttpStatusCode.OK)
             {
-                throw new Exception(
-                    $"KrakenBrokerage.{methodCaller}: request failed: [{(int)response.StatusCode}] {response.StatusDescription}, Content: {response.Content}, ErrorMessage: {response.ErrorMessage}");
+                throw new Exception($"KrakenBrokerage.{methodCaller}: request failed: [{(int)response.StatusCode}] {response.StatusDescription}, Content: {response.Content}, ErrorMessage: {response.ErrorMessage}");
             }
 
             if (response.StatusCode == HttpStatusCode.OK && token["error"].HasValues)
@@ -820,8 +818,7 @@ namespace QuantConnect.Brokerages.Kraken
                 try
                 {
                     var interfaceDictionary = new List<Dictionary<string, object>>();
-                    foreach (var nic in NetworkInterface.GetAllNetworkInterfaces()
-                                 .Where(nic => nic.OperationalStatus == OperationalStatus.Up))
+                    foreach (var nic in NetworkInterface.GetAllNetworkInterfaces().Where(nic => nic.OperationalStatus == OperationalStatus.Up))
                     {
                         var interfaceInformation = new Dictionary<string, object>();
                         // Get UnicastAddresses
@@ -859,8 +856,7 @@ namespace QuantConnect.Brokerages.Kraken
                 api.TryRequest(request, out ModulesReadLicenseRead result);
                 if (!result.Success)
                 {
-                    throw new InvalidOperationException(
-                        $"Request for subscriptions from web failed, Response Errors : {string.Join(',', result.Errors)}");
+                    throw new InvalidOperationException($"Request for subscriptions from web failed, Response Errors : {string.Join(',', result.Errors)}");
                 }
 
                 var encryptedData = result.License;
@@ -914,14 +910,12 @@ namespace QuantConnect.Brokerages.Kraken
 
                 if (!isValid.Value)
                 {
-                    throw new ArgumentException(
-                        $"Your subscription is not valid, please check your product subscriptions on our website.");
+                    throw new ArgumentException($"Your subscription is not valid, please check your product subscriptions on our website.");
                 }
 
                 if (expirationDate < nowUtc)
                 {
-                    throw new ArgumentException(
-                        $"Your subscription expired {expirationDate}, please renew in order to use this product.");
+                    throw new ArgumentException($"Your subscription expired {expirationDate}, please renew in order to use this product.");
                 }
             }
             catch (Exception e)
