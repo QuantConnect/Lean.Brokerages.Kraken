@@ -200,8 +200,7 @@ namespace QuantConnect.Brokerages.Kraken
                         break;
                     default:
                         OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Error, -1,
-                            "BinanceBrokerage.GetOpenOrders: Unsupported order type returned from brokerage: " +
-                            item.Type));
+                            "BinanceBrokerage.GetOpenOrders: Unsupported order type returned from brokerage: " + item.Type));
                         continue;
                 }
 
@@ -354,8 +353,7 @@ namespace QuantConnect.Brokerages.Kraken
                         ? new CashAmount(baseQuantity + baseCurrencyAmount.Amount, @base)
                         : new CashAmount(baseQuantity, @base);
 
-                    var quoteQuantity =
-                        -holdings[i].Quantity * holdings[i].AveragePrice; // substract quote holding value from balance
+                    var quoteQuantity = -holdings[i].Quantity * holdings[i].AveragePrice; // substract quote holding value from balance
 
                     balances[quote] = balances.TryGetValue(quote, out var quoteCurrencyAmount)
                         ? new CashAmount(quoteQuantity + quoteCurrencyAmount.Amount, quote)
@@ -413,8 +411,7 @@ namespace QuantConnect.Brokerages.Kraken
         /// <returns>Order updated or not</returns>
         public override bool UpdateOrder(Order order)
         {
-            throw new NotSupportedException(
-                "KrakenBrokerage.UpdateOrder: Order update not supported. Please cancel and re-create.");
+            throw new NotSupportedException("KrakenBrokerage.UpdateOrder: Order update not supported. Please cancel and re-create.");
         }
 
         /// <summary>
@@ -427,8 +424,7 @@ namespace QuantConnect.Brokerages.Kraken
             if (!order.BrokerId.Any())
             {
                 // we need the brokerage order id in order to perform a cancellation
-                OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, -1,
-                    $"{nameof(KrakenBrokerage)}.{nameof(CancelOrder)}(): Order {order.Id} has no BrokerId"));
+                OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, -1, $"{nameof(KrakenBrokerage)}.{nameof(CancelOrder)}(): Order {order.Id} has no BrokerId"));
                 return false;
             }
 
