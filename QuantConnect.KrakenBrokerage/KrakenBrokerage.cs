@@ -525,10 +525,10 @@ namespace QuantConnect.Brokerages.Kraken
         /// <param name="verificationTier">Account verification tier</param>
         /// <param name="orderBookDepth">Desired depth of orderbook that will receive DataQueueHandler</param>
         /// <param name="algorithm"><see cref="IAlgorithm"/> instance</param>
+        /// <param name="orderProvider"><see cref="IOrderProvider"/> instance</param>
         /// <param name="aggregator"><see cref="IDataAggregator"/> instance</param>
         /// <param name="job">Lean <see cref="LiveNodePacket"/></param>
-        protected void Initialize(string apiKey, string apiSecret, string verificationTier, int orderBookDepth,
-            IAlgorithm algorithm, IOrderProvider orderProvider, IDataAggregator aggregator, LiveNodePacket job)
+        protected void Initialize(string apiKey, string apiSecret, string verificationTier, int orderBookDepth, IAlgorithm algorithm, IOrderProvider orderProvider, IDataAggregator aggregator, LiveNodePacket job)
         {
             if (IsInitialized)
             {
@@ -607,16 +607,15 @@ namespace QuantConnect.Brokerages.Kraken
                     {
                         var windowStartTime = Time.UnixTimeStampToDateTime(candlesList[0].Time);
                         var windowEndTime = Time.UnixTimeStampToDateTime(lastValue.Time + resolutionInSeconds);
-                        Log.Debug(
-                            $"KrakenBrokerage.GetOhlcHistory(): Received [{marketSymbol}] data for time period from {windowStartTime.ToStringInvariant()} to {windowEndTime.ToStringInvariant()}..");
+                        Log.Debug($"KrakenBrokerage.GetOhlcHistory(): Received [{marketSymbol}] data for time period from {windowStartTime.ToStringInvariant()} to {windowEndTime.ToStringInvariant()}..");
                     }
 
                     start = lastValue.Time + resolutionInSeconds;
 
                     for (var i = 0; i < candlesList.Count; i++)
                     {
-                        if (candlesList[i].Time >
-                            end) // no "to" param in Kraken and it returns just 1000 candles since start timestamp
+                        // no "to" param in Kraken and it returns just 1000 candles since start timestamp
+                        if (candlesList[i].Time > end)
                         {
                             yield break;
                         }
@@ -671,8 +670,7 @@ namespace QuantConnect.Brokerages.Kraken
                     {
                         var windowStartTime = Time.UnixTimeStampToDateTime(tradesList[0].Time);
                         var windowEndTime = Time.UnixTimeStampToDateTime(lastValue.Time);
-                        Log.Debug(
-                            $"KrakenBrokerage.GetTradeHistory(): Received [{marketSymbol}] data for time period from {windowStartTime.ToStringInvariant()} to {windowEndTime.ToStringInvariant()}..");
+                        Log.Debug($"KrakenBrokerage.GetTradeHistory(): Received [{marketSymbol}] data for time period from {windowStartTime.ToStringInvariant()} to {windowEndTime.ToStringInvariant()}..");
                     }
 
                     if (Math.Abs(start - lastValue.Time) == 0) // avoid duplicates
