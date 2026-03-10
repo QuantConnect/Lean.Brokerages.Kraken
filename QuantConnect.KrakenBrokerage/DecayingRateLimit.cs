@@ -86,6 +86,10 @@ namespace QuantConnect.Brokerages.Kraken
 
                 // Calculate the wait time needed for the deficit to decay back to an acceptable level.
                 var waitTimeInMs = (Math.Ceiling(Math.Abs(deficit) / _decayRate) + 1) * _decayIntervalInMs;
+                if (millisecondsTimeout != -1)
+                {
+                    waitTimeInMs = Math.Min(waitTimeInMs, millisecondsTimeout - milliseconds);
+                }
                 var waitMs = (int)Math.Min(waitTimeInMs, _timeoutToFullResetMs);
                 var waitTs = TimeSpan.FromMilliseconds(waitMs);
 

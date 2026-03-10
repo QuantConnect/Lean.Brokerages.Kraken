@@ -83,15 +83,54 @@ public class DecayingRateLimitTests
     }
 
     [Test]
-    public void WaitToProceed_ThrowsAfterMaxRetries_WhenWeightIsGreaterThanLimit()
+    public void WaitToProceed_ReturnFalseAfterTimeout()
     {
         using var cts = new CancellationTokenSource();
-        using var rateLimit = new DecayingRateLimit(limit: 5, decayRate: 1m, decayIntervalInMs: 1, cts.Token);
+        using var rateLimit = new DecayingRateLimit(limit: 5, decayRate: 0.001m, decayIntervalInMs: 1000, cts.Token);
 
-        var exception = Assert.Throws<InvalidOperationException>(() =>
-            rateLimit.WaitToProceed(weight: 6, identifier: "oversized-request"));
+        Assert.IsTrue(rateLimit.WaitToProceed(weight: 5));
+        const int timeoutMs = 250;
 
-        Assert.IsTrue(exception!.Message.Contains("oversized-request"));
-        Assert.IsTrue(exception!.Message.Contains("after 10 retries"));
+        var watch = Stopwatch.StartNew();
+        var result = rateLimit.WaitToProceed(weight: 1, identifier: "timed-out-request", millisecondsTimeout: timeoutMs);
+        watch.Stop();
+
+        Assert.IsFalse(result);
+        Assert.GreaterOrEqual(watch.ElapsedMilliseconds, timeoutMs - 30);
+        Assert.Less(watch.ElapsedMilliseconds, timeoutMs + 500);
+    }
+
+    [Test]
+    public void WaitToProceed_ReturnsFalseImmediately_WhenCancellationAlreadyRequested()
+    {
+        using var cts = new CancellationTokenSource();
+        using var rateLimit = new DecayingRateLimit(limit: 5, decayRate: 1m, decayIntervalInMs: 500, cts.Token);
+
+        Assert.IsTrue(rateLimit.WaitToProceed(weight: 5));
+        cts.Cancel();
+
+        var watch = Stopwatch.StartNew();
+        var result = rateLimit.WaitToProceed(weight: 1, identifier: "already-cancelled", millisecondsTimeout: 10_000);
+        watch.Stop();
+
+        Assert.IsFalse(result);
+        Assert.Less(watch.ElapsedMilliseconds, 50);
+    }
+
+    [Test]
+    public void WaitToProceed_CancellationStopsWaiting_BeforeTimeout()
+    {
+        using var cts = new CancellationTokenSource();
+        using var rateLimit = new DecayingRateLimit(limit: 5, decayRate: 0.001m, decayIntervalInMs: 1000, cts.Token);
+
+        Assert.IsTrue(rateLimit.WaitToProceed(weight: 5));
+        cts.CancelAfter(100);
+
+        var watch = Stopwatch.StartNew();
+        var result = rateLimit.WaitToProceed(weight: 1, identifier: "cancel-before-timeout", millisecondsTimeout: 10_000);
+        watch.Stop();
+
+        Assert.IsFalse(result);
+        Assert.Less(watch.ElapsedMilliseconds, 1_000);
     }
 }
