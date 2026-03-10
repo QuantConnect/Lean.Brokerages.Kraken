@@ -80,8 +80,8 @@ namespace QuantConnect.Brokerages.Kraken
             while (!TryAcquire(weight, Stopwatch.GetTimestamp(), out var deficit))
             {
                 var elapsed = Stopwatch.GetElapsedTime(startTimestamp);
-                var milliseconds = (int)elapsed.TotalMilliseconds;
-                if (millisecondsTimeout != -1 && milliseconds >= millisecondsTimeout)
+                var elapsedTotalMilliseconds = (int)elapsed.TotalMilliseconds;
+                if (millisecondsTimeout != -1 && elapsedTotalMilliseconds >= millisecondsTimeout)
                 {
                     return false;
                 }
@@ -90,7 +90,7 @@ namespace QuantConnect.Brokerages.Kraken
                 var waitTimeInMs = (Math.Ceiling(Math.Abs(deficit) / _decayRate) + 1) * _decayIntervalInMs;
                 if (millisecondsTimeout != -1)
                 {
-                    waitTimeInMs = Math.Min(waitTimeInMs, millisecondsTimeout - milliseconds);
+                    waitTimeInMs = Math.Min(waitTimeInMs, millisecondsTimeout - elapsedTotalMilliseconds);
                 }
                 var waitMs = (int)Math.Min(waitTimeInMs, _timeoutToFullResetMs);
                 var waitTs = TimeSpan.FromMilliseconds(waitMs);
