@@ -147,15 +147,8 @@ namespace QuantConnect.Brokerages.Kraken
         /// <param name="symbol">Brokerage symbol</param>
         public bool AddOrderRateLimitWaitToProceed(Symbol symbol)
         {
-            try
-            {
-                var rateLimit = GetOrCreateSymbolRateLimit(symbol);
-                return rateLimit.WaitToProceed(1, symbol.ToString());
-            }
-            catch
-            {
-                return false;
-            }
+            var rateLimit = GetOrCreateSymbolRateLimit(symbol);
+            return rateLimit.WaitToProceed(1, symbol.ToString());
         }
 
         /// <summary>
@@ -165,16 +158,9 @@ namespace QuantConnect.Brokerages.Kraken
         /// <param name="time">Time order was placed</param>
         public bool CancelOrderRateLimitWaitToProceed(Symbol symbol, DateTime time)
         {
-            try
-            {
-                var weight = GetRateLimitWeightCancelOrder(time);
-                var rateLimit = GetOrCreateSymbolRateLimit(symbol);
-                return rateLimit.WaitToProceed(weight, symbol.ToString());
-            }
-            catch
-            {
-                return false;
-            }
+            var weight = GetRateLimitWeightCancelOrder(time);
+            var rateLimit = GetOrCreateSymbolRateLimit(symbol);
+            return rateLimit.WaitToProceed(weight, symbol.ToString());
         }
 
         /// <summary>

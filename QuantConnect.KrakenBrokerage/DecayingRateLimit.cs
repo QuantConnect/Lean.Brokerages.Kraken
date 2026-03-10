@@ -14,6 +14,7 @@
  */
 
 using System;
+using System.Diagnostics;
 using System.Threading;
 
 namespace QuantConnect.Brokerages.Kraken
@@ -31,9 +32,10 @@ namespace QuantConnect.Brokerages.Kraken
         private readonly int _limit;
         private readonly decimal _decayRate;
         private readonly CancellationToken _cancellationToken;
+        private readonly int _timeoutToFullResetMs;
 
         private decimal _counter;
-        private DateTime _lastUpdated;
+        private long _lastUpdatedTimestamp;
 
         /// <summary>
         /// Event that fires when the rate limit is exceeded and waiting is required
@@ -43,7 +45,7 @@ namespace QuantConnect.Brokerages.Kraken
         /// <summary>
         /// Creates a new decaying rate limit
         /// </summary>
-        /// <param name="limit">Maximum allowed counter value</param>
+        /// <param name="limit">Maximum allowed counter-value</param>
         /// <param name="decayRate">Amount the counter decays per interval</param>
         /// <param name="decayIntervalInMs">Interval in milliseconds for decay calculation</param>
         /// <param name="cancellationToken">Cancellation token for waiting operations</param>
@@ -54,7 +56,8 @@ namespace QuantConnect.Brokerages.Kraken
             _decayIntervalInMs = decayIntervalInMs;
             _cancellationToken = cancellationToken;
             _counter = 0;
-            _lastUpdated = DateTime.UnixEpoch;
+            _lastUpdatedTimestamp = Stopwatch.GetTimestamp();
+            _timeoutToFullResetMs = (int)(Math.Ceiling(_limit / _decayRate) + 1) * _decayIntervalInMs;
         }
 
         /// <summary>
@@ -63,35 +66,39 @@ namespace QuantConnect.Brokerages.Kraken
         /// </summary>
         /// <param name="weight">Weight of the operation (cost in rate limit units)</param>
         /// <param name="identifier">Identifier for logging purposes</param>
-        /// <returns>True if successful, false if cancelled</returns>
-        public bool WaitToProceed(int weight, string identifier = "")
+        /// <param name="millisecondsTimeout">Number of milliseconds to wait, or -1 to wait indefinitely.</param>
+        /// <returns>True if successful, false if canceled</returns>
+        public bool WaitToProceed(int weight, string identifier = "", int millisecondsTimeout = -1)
         {
-            const int maxRetries = 10;
-            var retryCount = 0;
+            // Check the arguments.
+            if (millisecondsTimeout < -1)
+                throw new ArgumentOutOfRangeException(nameof(millisecondsTimeout));
 
-            while (!TryAcquire(weight, DateTime.UtcNow, out var deficit))
+            var startTimestamp = Stopwatch.GetTimestamp();
+            while (!TryAcquire(weight, Stopwatch.GetTimestamp(), out var deficit))
             {
-                if (retryCount >= maxRetries)
+                var elapsed = Stopwatch.GetElapsedTime(startTimestamp);
+                var milliseconds = (int)elapsed.TotalMilliseconds;
+                if (millisecondsTimeout != -1 && milliseconds >= millisecondsTimeout)
                 {
-                    throw new InvalidOperationException(
-                        $"Failed to acquire rate limit slot for {identifier} after {maxRetries} retries. " +
-                        "This may indicate excessive concurrent requests.");
+                    return false;
                 }
 
+                // Calculate the wait time needed for the deficit to decay back to an acceptable level.
                 var waitTimeInMs = (Math.Ceiling(Math.Abs(deficit) / _decayRate) + 1) * _decayIntervalInMs;
-                var waitMs = (int)Math.Min(waitTimeInMs, int.MaxValue);
+                var waitMs = (int)Math.Min(waitTimeInMs, _timeoutToFullResetMs);
                 var waitTs = TimeSpan.FromMilliseconds(waitMs);
 
                 OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, "RateLimit",
                     $"The API request has been rate limited{(string.IsNullOrEmpty(identifier) ? "" : $" for {identifier}")}. " +
                     $"To avoid this message, please reduce the frequency of API calls. Will wait {waitTs.TotalSeconds} seconds..."));
 
+                // Wait for the calculated time period to allow rate limit tokens to recover through natural decay.
+                // If the cancellation token is signaled during the wait, exit early and return false.
                 if (_cancellationToken.WaitHandle.WaitOne(waitTs))
                 {
                     return false; // Cancelled
                 }
-
-                retryCount++;
             }
 
             return true;
@@ -101,23 +108,24 @@ namespace QuantConnect.Brokerages.Kraken
         /// Tries to acquire a rate limit slot without waiting
         /// </summary>
         /// <param name="weight">Weight of the operation</param>
-        /// <param name="now">Current timestamp</param>
+        /// <param name="nowTimestamp">Current timestamp</param>
         /// <param name="deficit">Output parameter indicating how much over the limit (negative if over)</param>
         /// <returns>True if acquired successfully, false if limit exceeded</returns>
-        private bool TryAcquire(int weight, DateTime now, out decimal deficit)
+        private bool TryAcquire(int weight, long nowTimestamp, out decimal deficit)
         {
             lock (_lock)
             {
-                var counterAfterDecay = Math.Max(_counter - CalculateDecay(now, _lastUpdated), 0);
+                var counterAfterDecay = Math.Max(_counter - CalculateDecay(nowTimestamp, _lastUpdatedTimestamp), 0);
                 var counterAfterOperation = counterAfterDecay + weight;
                 deficit = _limit - counterAfterOperation;
 
                 if (deficit >= 0)
                 {
                     _counter = counterAfterOperation;
-                    _lastUpdated = now;
+                    _lastUpdatedTimestamp = nowTimestamp;
                     return true;
                 }
+
                 return false;
             }
         }
@@ -125,9 +133,10 @@ namespace QuantConnect.Brokerages.Kraken
         /// <summary>
         /// Calculates how much the counter should decay based on elapsed time
         /// </summary>
-        private decimal CalculateDecay(DateTime now, DateTime lastUsed)
+        private decimal CalculateDecay(long nowTimestamp, long lastUsedTimestamp)
         {
-            var decayIntervals = (decimal)(now - lastUsed).TotalMilliseconds / _decayIntervalInMs;
+            var elapsedMs = Stopwatch.GetElapsedTime(lastUsedTimestamp, nowTimestamp).TotalMilliseconds;
+            var decayIntervals = (decimal)elapsedMs / _decayIntervalInMs;
             return decayIntervals * _decayRate;
         }
 

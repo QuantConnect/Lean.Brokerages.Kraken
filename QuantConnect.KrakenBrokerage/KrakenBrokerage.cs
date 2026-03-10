@@ -385,10 +385,11 @@ namespace QuantConnect.Brokerages.Kraken
             var symbolOpenOrders = _orderProvider.GetOpenOrderTickets(ticket =>
                 ticket.Symbol.Equals(order.Symbol) && ticket is
                     { Status: OrderStatus.Submitted or OrderStatus.PartiallyFilled });
-            if (!_rateLimiter.IsWithinOpenOrderLimit(symbolOpenOrders.Count()))
+            var symbolOpenOrderCount = symbolOpenOrders.Count();
+            if (!_rateLimiter.IsWithinOpenOrderLimit(symbolOpenOrderCount))
             {
                 OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, "OpenOrderLimitExceeded",
-                    $"Open order limit exceeded for symbol {order.Symbol}. Order was not placed."));
+                    $"Open order limit exceeded for symbol {order.Symbol}. Current open order count: {symbolOpenOrderCount}. Order was not placed."));
                 return false;
             }
 
