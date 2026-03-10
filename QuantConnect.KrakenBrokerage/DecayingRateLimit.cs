@@ -72,7 +72,9 @@ namespace QuantConnect.Brokerages.Kraken
         {
             // Check the arguments.
             if (millisecondsTimeout < -1)
+            {
                 throw new ArgumentOutOfRangeException(nameof(millisecondsTimeout));
+            }
 
             var startTimestamp = Stopwatch.GetTimestamp();
             while (!TryAcquire(weight, Stopwatch.GetTimestamp(), out var deficit))
