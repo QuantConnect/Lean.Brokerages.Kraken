@@ -119,7 +119,7 @@ namespace QuantConnect.Brokerages.Kraken
         {
             lock (_lock)
             {
-                var counterAfterDecay = Math.Max(_counter - CalculateDecay(nowTimestamp, _lastUpdatedTimestamp), 0);
+                var counterAfterDecay = Math.Max(_counter - CalculateDecay(_lastUpdatedTimestamp, nowTimestamp), 0);
                 var counterAfterOperation = counterAfterDecay + weight;
                 deficit = _limit - counterAfterOperation;
 
@@ -137,7 +137,7 @@ namespace QuantConnect.Brokerages.Kraken
         /// <summary>
         /// Calculates how much the counter should decay based on elapsed time
         /// </summary>
-        private decimal CalculateDecay(long nowTimestamp, long lastUsedTimestamp)
+        private decimal CalculateDecay(long lastUsedTimestamp, long nowTimestamp)
         {
             var elapsedMs = Stopwatch.GetElapsedTime(lastUsedTimestamp, nowTimestamp).TotalMilliseconds;
             var decayIntervals = (decimal)elapsedMs / _decayIntervalInMs;
