@@ -31,7 +31,7 @@ namespace QuantConnect.Tests.Brokerages.Kraken
                 {
                     new TestCaseData(Symbol.Create("EURUSD", SecurityType.Crypto, Market.Kraken), "ZEURZUSD", false),
                     new TestCaseData(Symbol.Create("BTCUSD", SecurityType.Crypto, Market.Kraken), "XXBTZUSD", false),
-                    new TestCaseData(Symbol.Create("ETHUSDT", SecurityType.Crypto, Market.Kraken), "XETHUSDT", false),
+                    new TestCaseData(Symbol.Create("ETHUSDT", SecurityType.Crypto, Market.Kraken), "ETHUSDT", false),
                     new TestCaseData(Symbol.Create("XRPBTC", SecurityType.Crypto, Market.Kraken), "XXRPXXBT", false),
                     new TestCaseData(Symbol.Create("ETHBTC", SecurityType.Crypto, Market.Kraken), "XETHXXBT", false),
                     new TestCaseData(Symbol.Create("XLMUSD", SecurityType.Crypto, Market.Kraken), "XXLMZUSD", false),
@@ -41,14 +41,14 @@ namespace QuantConnect.Tests.Brokerages.Kraken
                     new TestCaseData(Symbol.Create("ETHJPY", SecurityType.Crypto, Market.Kraken), "XETHZJPY", false),
                     new TestCaseData(Symbol.Create("LTCBTC", SecurityType.Crypto, Market.Kraken), "XLTCXXBT", false),
                     new TestCaseData(Symbol.Create("MLNBTC", SecurityType.Crypto, Market.Kraken), "XMLNXXBT", false),
-                    new TestCaseData(Symbol.Create("XDGEUR", SecurityType.Crypto, Market.Kraken), "XXDGZEUR", false),
+                    new TestCaseData(Symbol.Create("XDGEUR", SecurityType.Crypto, Market.Kraken), "XDGEUR", false),
                     new TestCaseData(Symbol.Create("EURBTC", SecurityType.Crypto, Market.Kraken), "", true), // no such a ticker on kraken
                     new TestCaseData(Symbol.Create("BTCUSD", SecurityType.Crypto, Market.Binance), "XXBTZUSD", true), // wrong Market
                     new TestCaseData(Symbol.Create("ETHUSDT", SecurityType.Future, Market.Kraken), "ETHUSDT", true), // wrong SecurityType
                 };
             }
         }
-        
+
         private static TestCaseData[] CorrectLeanSymbolTestParameters
         {
             get
@@ -57,7 +57,7 @@ namespace QuantConnect.Tests.Brokerages.Kraken
                 {
                     new TestCaseData("ZEURZUSD", Symbol.Create("EURUSD", SecurityType.Crypto, Market.Kraken), false),
                     new TestCaseData("XXBTZUSD", Symbol.Create("BTCUSD", SecurityType.Crypto, Market.Kraken), false),
-                    new TestCaseData("XETHUSDT", Symbol.Create("ETHUSDT", SecurityType.Crypto, Market.Kraken), false),
+                    new TestCaseData("ETHUSDT", Symbol.Create("ETHUSDT", SecurityType.Crypto, Market.Kraken), false),
                     new TestCaseData("XXRPXXBT", Symbol.Create("XRPBTC", SecurityType.Crypto, Market.Kraken), false),
                     new TestCaseData("XETHXXBT", Symbol.Create("ETHBTC", SecurityType.Crypto, Market.Kraken), false),
                     new TestCaseData("XXLMZUSD", Symbol.Create("XLMUSD", SecurityType.Crypto, Market.Kraken), false),
@@ -67,12 +67,12 @@ namespace QuantConnect.Tests.Brokerages.Kraken
                     new TestCaseData("XETHZJPY", Symbol.Create("ETHJPY", SecurityType.Crypto, Market.Kraken), false),
                     new TestCaseData("XLTCXXBT", Symbol.Create("LTCBTC", SecurityType.Crypto, Market.Kraken), false),
                     new TestCaseData("XMLNXXBT", Symbol.Create("MLNBTC", SecurityType.Crypto, Market.Kraken), false),
-                    new TestCaseData("XXDGZEUR", Symbol.Create("XDGEUR", SecurityType.Crypto, Market.Kraken), false),
+                    new TestCaseData("XDGEUR", Symbol.Create("XDGEUR", SecurityType.Crypto, Market.Kraken), false),
                     new TestCaseData("", Symbol.Create("EURBTC", SecurityType.Crypto, Market.Kraken), true), // no such a ticker on kraken
                 };
             }
         }
-        
+
         private static TestCaseData[] WsSymbolTestParameters
         {
             get
@@ -95,8 +95,8 @@ namespace QuantConnect.Tests.Brokerages.Kraken
                 };
             }
         }
-        
-        
+
+
         [Test]
         [TestCaseSource(nameof(CorrectLeanSymbolTestParameters))]
         public void ReturnsCorrectLeanSymbol(string marketTicker, Symbol leanSymbol, bool shouldThrow)
@@ -104,10 +104,10 @@ namespace QuantConnect.Tests.Brokerages.Kraken
             TestDelegate test = () =>
             {
                 var symbol = _symbolMapper.GetLeanSymbol(marketTicker);
-                
+
                 Assert.AreEqual(symbol, leanSymbol, "Converted Lean Symbol not the same with passed symbol");
             };
-            
+
             if (shouldThrow)
             {
                 Assert.Throws<ArgumentException>(test);
@@ -125,10 +125,10 @@ namespace QuantConnect.Tests.Brokerages.Kraken
             TestDelegate test = () =>
             {
                 var symbol = _symbolMapper.GetBrokerageSymbol(leanSymbol);
-                
+
                 Assert.AreEqual(symbol, marketTicker, "Converted Brokerage Symbol not the same with passed Brokerage symbol");
             };
-            
+
             if (shouldThrow)
             {
                 Assert.Throws<ArgumentException>(test);
@@ -138,7 +138,7 @@ namespace QuantConnect.Tests.Brokerages.Kraken
                 Assert.DoesNotThrow(test);
             }
         }
-        
+
         [Test]
         [TestCaseSource(nameof(WsSymbolTestParameters))]
         public void ReturnsCorrectWsSymbol(Symbol marketTicker, string wsTicker, bool shouldThrow)
@@ -146,10 +146,10 @@ namespace QuantConnect.Tests.Brokerages.Kraken
             TestDelegate test = () =>
             {
                 var symbol = _symbolMapper.GetWebsocketSymbol(marketTicker);
-                
+
                 Assert.AreEqual(symbol, wsTicker, "Converted Websocket Symbol not the same with passed Websocket symbol");
             };
-            
+
             if (shouldThrow)
             {
                 Assert.Throws<ArgumentException>(test);

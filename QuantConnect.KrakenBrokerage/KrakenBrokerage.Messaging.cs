@@ -282,7 +282,6 @@ namespace QuantConnect.Brokerages.Kraken
 
                         if (status is OrderStatus.Filled && orderEventSent || status is OrderStatus.Canceled)
                         {
-                            _rateLimiter.OrderRateLimitDecay(order.Symbol);
                             _fills.TryRemove(orderId, out _);
                             _closedOrderEventSend.TryRemove(orderId, out _);
                         }

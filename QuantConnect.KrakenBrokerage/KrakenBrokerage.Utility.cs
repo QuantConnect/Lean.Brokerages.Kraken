@@ -82,13 +82,12 @@ namespace QuantConnect.Brokerages.Kraken
             Dictionary<string, string> header = new();
             var concat = nonce + body;
             var hash = SHA256.HashData(Encoding.UTF8.GetBytes(concat));
-            var secretDecoded = Convert.FromBase64String(ApiSecret);
 
             var urlBytes = Encoding.UTF8.GetBytes(path);
             var buffer = new byte[urlBytes.Length + hash.Length];
             Buffer.BlockCopy(urlBytes, 0, buffer, 0, urlBytes.Length);
             Buffer.BlockCopy(hash, 0, buffer, urlBytes.Length, hash.Length);
-            var hash2 = HMACSHA512.HashData(secretDecoded, buffer);
+            var hash2 = HMACSHA512.HashData(_secretDecoded, buffer);
             var finalKey = Convert.ToBase64String(hash2);
 
             header.Add("API-Key", ApiKey);

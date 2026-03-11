@@ -1,0 +1,159 @@
+/*
+ * QUANTCONNECT.COM - Democratizing Finance, Empowering Individuals.
+ * Lean Algorithmic Trading Engine v2.0. Copyright 2014 QuantConnect Corporation.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+using System;
+using System.Diagnostics;
+using System.Threading;
+
+namespace QuantConnect.Brokerages.Kraken
+{
+    /// <summary>
+    /// Implements a decaying rate limit strategy where the counter automatically decays over time.
+    /// This allows for flexible rate limiting that decreases as time passes, similar to a token bucket
+    /// with continuous refill.
+    /// Thread-safe for concurrent access.
+    /// </summary>
+    public class DecayingRateLimit : IDisposable
+    {
+        private readonly Lock _lock = new();
+        private readonly int _decayIntervalInMs;
+        private readonly int _limit;
+        private readonly decimal _decayRate;
+        private readonly CancellationToken _cancellationToken;
+        private readonly int _timeoutToFullResetMs;
+
+        private decimal _counter;
+        private long _lastUpdatedTimestamp;
+
+        /// <summary>
+        /// Event that fires when the rate limit is exceeded and waiting is required
+        /// </summary>
+        public event EventHandler<BrokerageMessageEvent> Message;
+
+        /// <summary>
+        /// Creates a new decaying rate limit
+        /// </summary>
+        /// <param name="limit">Maximum allowed counter-value</param>
+        /// <param name="decayRate">Amount the counter decays per interval</param>
+        /// <param name="decayIntervalInMs">Interval in milliseconds for decay calculation</param>
+        /// <param name="cancellationToken">Cancellation token for waiting operations</param>
+        public DecayingRateLimit(int limit, decimal decayRate, int decayIntervalInMs, CancellationToken cancellationToken)
+        {
+            _limit = limit;
+            _decayRate = decayRate;
+            _decayIntervalInMs = decayIntervalInMs;
+            _cancellationToken = cancellationToken;
+            _counter = 0;
+            _lastUpdatedTimestamp = Stopwatch.GetTimestamp();
+            _timeoutToFullResetMs = (int)(Math.Ceiling(_limit / _decayRate) + 1) * _decayIntervalInMs;
+        }
+
+        /// <summary>
+        /// Attempts to acquire a rate limit slot with the specified weight.
+        /// Will wait and retry if limit is exceeded.
+        /// </summary>
+        /// <param name="weight">Weight of the operation (cost in rate limit units)</param>
+        /// <param name="identifier">Identifier for logging purposes</param>
+        /// <param name="millisecondsTimeout">Number of milliseconds to wait, or -1 to wait indefinitely.</param>
+        /// <returns>True if successful, false if canceled</returns>
+        public bool WaitToProceed(int weight, string identifier = "", int millisecondsTimeout = -1)
+        {
+            // Check the arguments.
+            if (millisecondsTimeout < -1)
+            {
+                throw new ArgumentOutOfRangeException(nameof(millisecondsTimeout));
+            }
+
+            var startTimestamp = Stopwatch.GetTimestamp();
+            while (!TryAcquire(weight, Stopwatch.GetTimestamp(), out var deficit))
+            {
+                var elapsed = Stopwatch.GetElapsedTime(startTimestamp);
+                var elapsedTotalMilliseconds = (int)elapsed.TotalMilliseconds;
+                if (millisecondsTimeout != -1 && elapsedTotalMilliseconds >= millisecondsTimeout)
+                {
+                    return false;
+                }
+
+                // Calculate the wait time needed for the deficit to decay back to an acceptable level.
+                var waitTimeInMs = (Math.Ceiling(Math.Abs(deficit) / _decayRate) + 1) * _decayIntervalInMs;
+                if (millisecondsTimeout != -1)
+                {
+                    waitTimeInMs = Math.Min(waitTimeInMs, millisecondsTimeout - elapsedTotalMilliseconds);
+                }
+                var waitMs = (int)Math.Min(waitTimeInMs, _timeoutToFullResetMs);
+                var waitTs = TimeSpan.FromMilliseconds(waitMs);
+
+                OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, "RateLimit",
+                    $"The API request has been rate limited{(string.IsNullOrEmpty(identifier) ? "" : $" for {identifier}")}. " +
+                    $"To avoid this message, please reduce the frequency of API calls. Will wait {waitTs.TotalSeconds} seconds..."));
+
+                // Wait for the calculated time period to allow rate limit tokens to recover through natural decay.
+                // If the cancellation token is signaled during the wait, exit early and return false.
+                if (_cancellationToken.WaitHandle.WaitOne(waitTs))
+                {
+                    return false; // Cancelled
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Tries to acquire a rate limit slot without waiting
+        /// </summary>
+        /// <param name="weight">Weight of the operation</param>
+        /// <param name="nowTimestamp">Current timestamp</param>
+        /// <param name="deficit">Output parameter indicating how much over the limit (negative if over)</param>
+        /// <returns>True if acquired successfully, false if limit exceeded</returns>
+        private bool TryAcquire(int weight, long nowTimestamp, out decimal deficit)
+        {
+            lock (_lock)
+            {
+                var counterAfterDecay = Math.Max(_counter - CalculateDecay(_lastUpdatedTimestamp, nowTimestamp), 0);
+                var counterAfterOperation = counterAfterDecay + weight;
+                deficit = _limit - counterAfterOperation;
+
+                if (deficit >= 0)
+                {
+                    _counter = counterAfterOperation;
+                    _lastUpdatedTimestamp = nowTimestamp;
+                    return true;
+                }
+
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Calculates how much the counter should decay based on elapsed time
+        /// </summary>
+        private decimal CalculateDecay(long lastUsedTimestamp, long nowTimestamp)
+        {
+            var elapsedMs = Stopwatch.GetElapsedTime(lastUsedTimestamp, nowTimestamp).TotalMilliseconds;
+            var decayIntervals = (decimal)elapsedMs / _decayIntervalInMs;
+            return decayIntervals * _decayRate;
+        }
+
+        private void OnMessage(BrokerageMessageEvent messageEvent)
+        {
+            Message?.Invoke(this, messageEvent);
+        }
+
+        public void Dispose()
+        {
+            // Nothing to dispose in this implementation
+        }
+    }
+}

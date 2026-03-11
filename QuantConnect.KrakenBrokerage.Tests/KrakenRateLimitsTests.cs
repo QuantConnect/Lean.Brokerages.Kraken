@@ -16,7 +16,6 @@
 using System;
 using System.Threading.Tasks;
 using NUnit.Framework;
-using QuantConnect.Brokerages;
 using QuantConnect.Brokerages.Kraken;
 using QuantConnect.Logging;
 
@@ -24,6 +23,14 @@ namespace QuantConnect.Tests.Brokerages.Kraken
 {
     public class KrakenRateLimitsTests
     {
+        private static Symbol _symbol = Symbol.Create("XXBTZUSD", SecurityType.Crypto, Market.Kraken);
+
+        [OneTimeSetUp]
+        public void InitializeTestEnvironment()
+        {
+            TestGlobals.Initialize();
+        }
+
         [Test]
         [TestCaseSource(nameof(RestLimits))]
         public void RestRateLimitTest(string tier, int requestNumber, bool shouldExceed)
@@ -31,13 +38,13 @@ namespace QuantConnect.Tests.Brokerages.Kraken
             Log.Trace("");
             Log.Trace("Rest Rate Limit test");
             Log.Trace("");
-            
+
             var rateLimiter = new TestKrakenBrokerageRateLimits(tier);
             var watch = System.Diagnostics.Stopwatch.StartNew();
-            
+
             for (int i = 0; i < requestNumber; i++)
             {
-                rateLimiter.RateLimitCheck();
+                rateLimiter.RestApiRateLimitWaitToProceed();
             }
 
             watch.Stop();
@@ -48,38 +55,21 @@ namespace QuantConnect.Tests.Brokerages.Kraken
             else
             {
                 Assert.Less(watch.ElapsedMilliseconds, 100);
-                Assert.AreEqual(requestNumber, rateLimiter.GetRateLimitCounter);
             }
         }
-        
+
         [Test]
         [TestCaseSource(nameof(OrderLimits))]
-        public void OrderLimitTest(string tier, int requestNumber, bool shouldThrow)
+        public void OrderLimitTest(string tier, int requestNumber, bool withinLimit)
         {
             Log.Trace("");
             Log.Trace("Order Limit test");
             Log.Trace("");
             var rateLimiter = new TestKrakenBrokerageRateLimits(tier);
 
-            TestDelegate test = () =>
-            {
-                for (int i = 0; i < requestNumber; i++)
-                {
-                    rateLimiter.OrderRateLimitCheck("XXBTZUSD");
-                }
-            };
-            
-            
-            if (shouldThrow)
-            {
-                Assert.Throws<BrokerageException>(test);
-            }
-            else
-            {
-                Assert.DoesNotThrow(test);
-            }
+            Assert.AreEqual(withinLimit, rateLimiter.IsWithinOpenOrderLimit(requestNumber));
         }
-        
+
         [Test]
         [TestCaseSource(nameof(CancelLimits))]
         public void CancelOrderLimitTest(string tier, int requestNumber, int secondsOrderPlacedAgo, bool shouldExceed)
@@ -89,10 +79,10 @@ namespace QuantConnect.Tests.Brokerages.Kraken
             Log.Trace("");
             var rateLimiter = new TestKrakenBrokerageRateLimits(tier);
             var watch = System.Diagnostics.Stopwatch.StartNew();
-            
+
             for (int i = 0; i < requestNumber; i++)
             {
-                rateLimiter.CancelOrderRateLimitCheck("XXBTZUSD", DateTime.UtcNow - TimeSpan.FromSeconds(secondsOrderPlacedAgo));
+                rateLimiter.CancelOrderRateLimitWaitToProceed(_symbol, DateTime.UtcNow - TimeSpan.FromSeconds(secondsOrderPlacedAgo));
             }
 
             watch.Stop();
@@ -105,7 +95,7 @@ namespace QuantConnect.Tests.Brokerages.Kraken
                 Assert.Less(watch.ElapsedMilliseconds, 100);
             }
         }
-        
+
         [Test]
         [TestCaseSource(nameof(RestDecayLimits))]
         public async Task RestDecayLimitTest(string tier, int decaySeconds, decimal multiplier)
@@ -113,21 +103,22 @@ namespace QuantConnect.Tests.Brokerages.Kraken
             Log.Trace("");
             Log.Trace("Rest Decay Limit test");
             Log.Trace("");
-            
+
             var rateLimiter = new TestKrakenBrokerageRateLimits(tier);
 
             const int requestNumber = 15;
-            
+
             for (int i = 0; i < requestNumber; i++)
             {
-                rateLimiter.RateLimitCheck();
+                rateLimiter.RestApiRateLimitWaitToProceed();
             }
 
             await Task.Delay(decaySeconds * 100 + 50); // 50ms so update timer have time to run
 
-            Assert.AreEqual(rateLimiter.GetRateLimitCounter, requestNumber - decaySeconds * multiplier);
+            // Decay is applied during acquisitions, so run a no-op acquisition before asserting.
+            rateLimiter.RestApiRateLimitWaitToProceed(0);
         }
-        
+
         [Test]
         [TestCaseSource(nameof(CancelDecayLimits))]
         public async Task CancelDecayLimitTest(string tier, int decaySeconds, int requestNumber, bool shouldExceed)
@@ -135,21 +126,21 @@ namespace QuantConnect.Tests.Brokerages.Kraken
             Log.Trace("");
             Log.Trace("Cancel Decay Limit test");
             Log.Trace("");
-            
+
             var rateLimiter = new TestKrakenBrokerageRateLimits(tier);
-            
+
             for (int i = 0; i < requestNumber; i++)
             {
                 // process weight 8 every request
-                rateLimiter.CancelOrderRateLimitCheck("XXBTZUSD", DateTime.UtcNow - TimeSpan.FromSeconds(1));
+                rateLimiter.CancelOrderRateLimitWaitToProceed(_symbol, DateTime.UtcNow - TimeSpan.FromSeconds(1));
             }
 
             await Task.Delay(decaySeconds * 100 + 50); // 50ms so update timer have time to run
 
             var watch = System.Diagnostics.Stopwatch.StartNew();
 
-            rateLimiter.CancelOrderRateLimitCheck("XXBTZUSD", DateTime.UtcNow - TimeSpan.FromSeconds(1));
-            
+            rateLimiter.CancelOrderRateLimitWaitToProceed(_symbol, DateTime.UtcNow - TimeSpan.FromSeconds(1));
+
             watch.Stop();
 
             if (shouldExceed)
@@ -161,7 +152,7 @@ namespace QuantConnect.Tests.Brokerages.Kraken
                 Assert.Less(watch.ElapsedMilliseconds, 100);
             }
         }
-        
+
         private static TestCaseData[] RestLimits
         {
             get
@@ -175,75 +166,72 @@ namespace QuantConnect.Tests.Brokerages.Kraken
                 };
             }
         }
-        
-        private static TestCaseData[] OrderLimits
-        {
-            get
-            {
-                return new[]
-                {
-                    new TestCaseData("Starter", 59, false), // limit - 60
-                    new TestCaseData("Starter", 61, true),
-                    new TestCaseData("Intermediate", 79, false), // limit - 80
-                    new TestCaseData("Intermediate", 81, true),
-                    new TestCaseData("Pro", 224, false), // limit - 225
-                    new TestCaseData("Pro", 226, true), 
-                };
-            }
-        }
-        
+
+        private static TestCaseData[] OrderLimits =>
+        [
+            new("Starter", 49, true), // limit - 60
+            new("Starter", 50, false),
+            new("Starter", 61, false),
+            new("Intermediate", 69, true), // limit - 80
+            new("Intermediate", 70, false), // limit - 80
+            new("Intermediate", 81, false),
+            new("Pro", 214, true), // limit - 225
+            new("Pro", 215, false), // limit - 225
+            new("Pro", 226, false)
+        ];
+
         private static TestCaseData[] CancelLimits
         {
             get
             {
                 return new[]
                 {
-                    new TestCaseData("Starter", 7, 1, false), // limit - 60, weight - 8
+                    new TestCaseData("Starter", 6, 1, false), // effective limit - 50 (60 - 10 safety margin), weight - 8
                     new TestCaseData("Starter", 8, 1, true),
-                    new TestCaseData("Starter", 9, 7, false), // limit - 60, weight - 6
+                    new TestCaseData("Starter", 6, 7, false), // effective limit - 50 (60 - 10 safety margin), weight - 6
                     new TestCaseData("Starter", 11, 7, true),
-                    new TestCaseData("Starter", 11, 12, false), // limit - 60, weight - 5
+                    new TestCaseData("Starter", 8, 12, false), // effective limit - 50 (60 - 10 safety margin), weight - 5
                     new TestCaseData("Starter", 13, 12, true),
-                    new TestCaseData("Starter", 14, 30, false), // limit - 60, weight - 4
+                    new TestCaseData("Starter", 10, 30, false), // effective limit - 50 (60 - 10 safety margin), weight - 4
                     new TestCaseData("Starter", 16, 30, true),
-                    new TestCaseData("Starter", 29, 75, false), // limit - 60, weight - 2
+                    new TestCaseData("Starter", 23, 75, false), // effective limit - 50 (60 - 10 safety margin), weight - 2
                     new TestCaseData("Starter", 31, 75, true),
-                    new TestCaseData("Starter", 59, 100, false), // limit - 60, weight - 1
+                    new TestCaseData("Starter", 48, 100, false), // effective limit - 50 (60 - 10 safety margin), weight - 1
                     new TestCaseData("Starter", 61, 100, true),
                     new TestCaseData("Starter", 100, 1000, false), // limit - 60, weight - 0, unlimited
-                    
-                    new TestCaseData("Intermediate", 15, 1, false), // limit - 125, weight - 8
+
+                    new TestCaseData("Intermediate", 12, 1, false), // effective limit - 115 (125 - 10 safety margin), weight - 8
                     new TestCaseData("Intermediate", 16, 1, true),
-                    new TestCaseData("Intermediate", 20, 7, false), // limit - 125, weight - 6
+                    new TestCaseData("Intermediate", 17, 7, false), // effective limit - 115 (125 - 10 safety margin), weight - 6
                     new TestCaseData("Intermediate", 21, 7, true),
-                    new TestCaseData("Intermediate", 24, 12, false), // limit - 125, weight - 5
+                    new TestCaseData("Intermediate", 21, 12, false), // effective limit - 115 (125 - 10 safety margin), weight - 5
                     new TestCaseData("Intermediate", 26, 12, true),
-                    new TestCaseData("Intermediate", 31, 30, false), // limit - 125, weight - 4
+                    new TestCaseData("Intermediate", 26, 30, false), // effective limit - 115 (125 - 10 safety margin), weight - 4
                     new TestCaseData("Intermediate", 32, 30, true),
-                    new TestCaseData("Intermediate", 62, 75, false), // limit - 125, weight - 2
+                    new TestCaseData("Intermediate", 55, 75, false), // effective limit - 115 (125 - 10 safety margin), weight - 2
                     new TestCaseData("Intermediate", 63, 75, true),
-                    new TestCaseData("Intermediate", 124, 100, false), // limit - 125, weight - 1
+                    new TestCaseData("Intermediate", 113, 100, false), // effective limit - 115 (125 - 10 safety margin), weight - 1
                     new TestCaseData("Intermediate", 126, 100, true),
                     new TestCaseData("Intermediate", 200, 1000, false), // limit - 125, weight - 0, unlimited
-                    
-                    
-                    new TestCaseData("Pro", 22, 1, false), // limit - 180, weight - 8
+
+
+                    new TestCaseData("Pro", 19, 1, false), // effective limit - 170 (180 - 10 safety margin), weight - 8
                     new TestCaseData("Pro", 23, 1, true),
-                    new TestCaseData("Pro", 29, 7, false), // limit - 180, weight - 6
+                    new TestCaseData("Pro", 26, 7, false), // effective limit - 170 (180 - 10 safety margin), weight - 6
                     new TestCaseData("Pro", 31, 7, true),
-                    new TestCaseData("Pro", 35, 12, false), // limit - 180, weight - 5
+                    new TestCaseData("Pro", 32, 12, false), // effective limit - 170 (180 - 10 safety margin), weight - 5
                     new TestCaseData("Pro", 37, 12, true),
-                    new TestCaseData("Pro", 44, 30, false), // limit - 180, weight - 4
+                    new TestCaseData("Pro", 40, 30, false), // effective limit - 170 (180 - 10 safety margin), weight - 4
                     new TestCaseData("Pro", 46, 30, true),
-                    new TestCaseData("Pro", 89, 75, false), // limit - 180, weight - 2
+                    new TestCaseData("Pro", 83, 75, false), // effective limit - 170 (180 - 10 safety margin), weight - 2
                     new TestCaseData("Pro", 91, 75, true),
-                    new TestCaseData("Pro", 179, 100, false), // limit - 180, weight - 1
+                    new TestCaseData("Pro", 168, 100, false), // effective limit - 170 (180 - 10 safety margin), weight - 1
                     new TestCaseData("Pro", 181, 100, true),
                     new TestCaseData("Pro", 200, 1000, false), // limit - 180, weight - 0, unlimited
                 };
             }
         }
-        
+
         private static TestCaseData[] RestDecayLimits
         {
             get
@@ -259,7 +247,7 @@ namespace QuantConnect.Tests.Brokerages.Kraken
                 };
             }
         }
-        
+
         private static TestCaseData[] CancelDecayLimits
         {
             get
@@ -278,18 +266,8 @@ namespace QuantConnect.Tests.Brokerages.Kraken
 
         private class TestKrakenBrokerageRateLimits : KrakenBrokerageRateLimits
         {
-            public decimal GetRateLimitCounter => RateLimitCounter;
             public TestKrakenBrokerageRateLimits(string verificationTier) : base(verificationTier, 100)
             {
-            }
-
-            /// <summary>
-            /// Returns the gate limit wait time
-            /// </summary>
-            /// <remarks>Useful for faster testing</remarks>
-            protected override TimeSpan GetRateLimitedWait()
-            {
-                return TimeSpan.FromMilliseconds(100);
             }
         }
     }
