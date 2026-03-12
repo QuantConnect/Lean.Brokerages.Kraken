@@ -133,4 +133,18 @@ public class DecayingRateLimitTests
         Assert.IsFalse(result);
         Assert.Less(watch.ElapsedMilliseconds, 1_000);
     }
+
+    [Test]
+    public void WaitToProceed_ReturnsFalseImmediately_WhenWeightExceedsLimit()
+    {
+        using var cts = new CancellationTokenSource();
+        using var rateLimit = new DecayingRateLimit(limit: 5, decayRate: 0.001m, decayIntervalInMs: 1000, cts.Token);
+
+        var watch = Stopwatch.StartNew();
+        var result = rateLimit.WaitToProceed(weight: 10, identifier: "weight-exceeds-limit");
+        watch.Stop();
+
+        Assert.IsFalse(result);
+        Assert.Less(watch.ElapsedMilliseconds, 50);
+    }
 }
