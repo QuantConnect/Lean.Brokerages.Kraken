@@ -80,7 +80,7 @@ namespace QuantConnect.Brokerages.Kraken
             {
                 OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, "RateLimit",
                     $"API request weight ({weight}) exceeds the rate limit ({_limit}){(string.IsNullOrEmpty(identifier) ? "" : $" for {identifier}")}. " +
-                    $"This request cannot be processed. Please reduce the weight of individual API calls or split them into smaller operations."));
+                    $"This request cannot be processed. Please consider upgrading your brokerage tier plan to increase the rate limit."));
                 return false;
             }
 
