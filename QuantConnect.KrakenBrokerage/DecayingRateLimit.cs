@@ -76,6 +76,14 @@ namespace QuantConnect.Brokerages.Kraken
                 throw new ArgumentOutOfRangeException(nameof(millisecondsTimeout));
             }
 
+            if (weight > _limit)
+            {
+                OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Warning, "RateLimit",
+                    $"API request weight ({weight}) exceeds the rate limit ({_limit}){(string.IsNullOrEmpty(identifier) ? "" : $" for {identifier}")}. " +
+                    $"This request cannot be processed. Please consider upgrading your brokerage tier plan to increase the rate limit."));
+                return false;
+            }
+
             var startTimestamp = Stopwatch.GetTimestamp();
             while (!TryAcquire(weight, Stopwatch.GetTimestamp(), out var deficit))
             {
