@@ -22,13 +22,13 @@ This repository hosts the Kraken Brokerage Plugin Integration with the QuantConn
 
 [Kraken](https://www.kraken.com/) was founded by Jesse Powell in 2011 with the goal to "accelerate the adoption of cryptocurrency so that you and the rest of the world can achieve financial freedom and inclusion". Kraken provides access to trading Crypto through spot and Futures markets for clients with a minimum deposit of around $0-$150 USD for [currency](https://support.kraken.com/hc/en-us/articles/360000381846) and [Crypto deposits](https://support.kraken.com/hc/en-us/articles/360000292886-Cryptocurrency-deposit-fees-and-minimums). Kraken also provides staking services, educational content, and a developer grant program.
 
-For more information about the Kraken brokerage, see the [QuantConnect-Kraken Integration Page](https://www.quantconnect.com/docs/v2/our-platform/live-trading/brokerages/kraken).
+For more information about the Kraken brokerage, see the [QuantConnect-Kraken Integration Page](https://www.quantconnect.com/docs/v2/cloud-platform/live-trading/brokerages/kraken).
 
 ## Using the Brokerage Plugin
 
 ### Deploying Kraken with VSCode User Interace
 
-  You can deploy using a visual interface in the QuantConnect Cloud. For more information, see the [QuantConnect-Kraken documentation page](https://www.quantconnect.com/docs/v2/our-platform/live-trading/brokerages/kraken). 
+  You can deploy using a visual interface in the QuantConnect Cloud. For more information, see the [QuantConnect-Kraken documentation page](https://www.quantconnect.com/docs/v2/cloud-platform/live-trading/brokerages/kraken). 
   
   ![deploy-kraken](https://user-images.githubusercontent.com/38889814/188245697-3514631b-2856-4fe6-ba73-70e85f7256db.gif)
 
@@ -38,7 +38,7 @@ For more information about the Kraken brokerage, see the [QuantConnect-Kraken In
 
 Follow these steps to start local live trading with the Kraken brokerage:
 
-1.  Open a terminal in your [CLI root directory](https://www.quantconnect.com/docs/v2/lean-cli/initialization/directory-structure#02-lean-init).
+1.  Open a terminal in your [CLI root directory](https://www.quantconnect.com/docs/v2/lean-cli/initialization/organization-workspaces#03-Directory-Structure).
 2.  Run lean live "`<projectName>`" to start a live deployment wizard for the project in ./`<projectName>` and then enter the brokerage number.
 
     ```
@@ -149,7 +149,7 @@ You can set the Brokerage Model with the following statements
 SetBrokerageModel(BrokerageName.Kraken, AccountType.Cash);
 SetBrokerageModel(BrokerageName.Kraken, AccountType.Margin);
 ```
-[Read Documentation](https://www.quantconnect.com/docs/v2/our-platform/live-trading/brokerages/kraken)
+[Read Documentation](https://www.quantconnect.com/docs/v2/cloud-platform/live-trading/brokerages/kraken)
 
 ### Fees
 
@@ -171,7 +171,7 @@ To check the latest fees at all the fee tiers, see the [Fee Schedule page](https
 
 We model buying power and margin calls to ensure your algorithm stays within the margin requirements.
 
-[Read Documentation](https://www.quantconnect.com/docs/v2/our-platform/live-trading/brokerages/kraken)
+[Read Documentation](https://www.quantconnect.com/docs/v2/cloud-platform/live-trading/brokerages/kraken)
 
 #### Buying Power
 
