@@ -30,6 +30,7 @@ using QuantConnect.Configuration;
 using QuantConnect.Data;
 using QuantConnect.Data.Market;
 using QuantConnect.Interfaces;
+using QuantConnect.Lean.Engine.Results;
 using QuantConnect.Logging;
 using QuantConnect.Orders;
 using QuantConnect.Packets;
@@ -568,6 +569,9 @@ namespace QuantConnect.Brokerages.Kraken
                 SetWebsocketToken();
                 WebSocket.Open += (sender, args) => { SubscribeAuth(); };
             }
+
+            DeploymentDetailsHelper.Add("kraken-verification-tier", verificationTier);
+            DeploymentDetailsHelper.Add("kraken-orderbook-depth", orderBookDepth.ToStringInvariant());
         }
 
         /// <summary>
